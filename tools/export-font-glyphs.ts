@@ -12,6 +12,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { FontTDV2200 } from '../src/fonts/FontTDV2200';
 import { FontTDV2215 } from '../src/fonts/FontTDV2215';
+import { FontVT100 } from '../src/fonts/FontVT100';
 import { FontBase } from '../src/fonts/FontBase';
 
 const EXPORT_DIR = join(__dirname, '..', 'docs', 'fonts', 'exports');
@@ -185,6 +186,29 @@ function main(): void {
   ];
 
   for (const config of tdv2215Configs) {
+    renderGlyphSheet(config);
+  }
+
+  // VT100 font
+  const vt100 = new FontVT100();
+  console.log('\nVT100 (8x10):');
+
+  const vt100Configs: ExportConfig[] = [
+    {
+      filename: 'vt100-ascii.png',
+      font: vt100, fontNum: 0,
+      startChar: 0x20, endChar: 0x7F,
+      title: 'VT100 ASCII (fontNum 0, positions 0x20-0x7F)',
+    },
+    {
+      filename: 'vt100-special-graphics.png',
+      font: vt100, fontNum: 0,
+      startChar: 0x00, endChar: 0x1F,
+      title: 'VT100 Special/Line Drawing (positions 0x00-0x1F)',
+    },
+  ];
+
+  for (const config of vt100Configs) {
     renderGlyphSheet(config);
   }
 

@@ -10,7 +10,7 @@ Provides authentic terminal emulation in the browser with Canvas2D rendering, bi
 - **TDV2215** — Tandberg TDV2215 emulation with character sets, protected areas, work areas, and LED indicators
 - **TDV2200** — Tandberg TDV2200 emulation with ISO 646 national variants, extended mode, and transparent mode
 - **Canvas2D Rendering** — Efficient dirty-rect rendering with CSS scaling (no re-render on resize)
-- **Bitmap Fonts** — Authentic pixel-perfect TDV2200 and TDV2215 ROM bitmap fonts (8x16 and 9x14)
+- **Bitmap Fonts** — Authentic pixel-perfect ROM bitmap fonts for all emulators: VT100 (8x10), TDV2200 (8x16), TDV2215 (9x14)
 - **Virtual Keyboard** — SVG-based TDV keyboard with all special keys, 12 national layouts
 - **Selection & Clipboard** — Click-drag text selection with Clipboard API integration
 - **Search** — Scrollback buffer search with match highlighting
@@ -140,12 +140,12 @@ vk.show();
 | LED Indicators | No | Yes | Yes |
 | Push Keys | No | Yes | Yes |
 | Rectangle Ops | No | Yes | Yes |
-| Bitmap Font | No | Yes | Yes |
+| Bitmap Font | Yes (8x10) | Yes (9x14) | Yes (8x16) |
 | ISO 646 Variants | No | 4 | 12 |
 
 ## Documentation
 
-- [Font Documentation](docs/fonts/README.md) — TDV2200 and TDV2215 bitmap font ROM reference, glyph exports, character set mapping
+- [Font Documentation](docs/fonts/README.md) — VT100, TDV2200, and TDV2215 bitmap font ROM reference, glyph exports, character set mapping
 
 ## Development
 
