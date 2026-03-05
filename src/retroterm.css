@@ -1,0 +1,20 @@
+/**
+ * RetroTerm — minimal CSS for terminal canvas rendering.
+ */
+
+.retroterm-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: text;
+}
+
+.retroterm-system {
+  image-rendering: auto;
+}
+
+.retroterm-bitmap {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

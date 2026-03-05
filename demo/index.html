@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RetroTerm — Terminal Emulator Demo</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header>
+    <h1>RetroTerm Demo</h1>
+    <div class="controls">
+      <label>
+        Emulator:
+        <select id="emulator-type">
+          <option value="vt100" selected>VT100</option>
+          <option value="tdv2215">TDV2215</option>
+          <option value="tdv2200">TDV2200</option>
+        </select>
+      </label>
+      <label>
+        Theme:
+        <select id="theme-select">
+          <option value="green" selected>Green</option>
+          <option value="amber">Amber</option>
+          <option value="white">White on Black</option>
+          <option value="blue">Blue</option>
+          <option value="paperwhite">Paperwhite</option>
+        </select>
+      </label>
+      <label>
+        Test:
+        <select id="test-select">
+          <option value="">— select test —</option>
+          <optgroup label="Basic">
+            <option value="echo">Echo Mode</option>
+            <option value="colors">Basic Colors</option>
+            <option value="256colors">256 Colors</option>
+            <option value="attributes">Character Attributes</option>
+            <option value="cursor">Cursor Movement</option>
+            <option value="scroll">Scrolling</option>
+          </optgroup>
+          <optgroup label="VT100">
+            <option value="linedraw">Line Drawing</option>
+            <option value="scrollregion">Scroll Regions</option>
+            <option value="saverestore">Cursor Save/Restore</option>
+            <option value="tabstops">Tab Stops</option>
+          </optgroup>
+          <optgroup label="TDV">
+            <option value="charsets">Character Sets (all)</option>
+            <option value="charsetcycle">Charset Cycle (per-set)</option>
+            <option value="protected">Protected Areas</option>
+            <option value="leds">LEDs</option>
+            <option value="queryresponse">Query/Response</option>
+          </optgroup>
+          <optgroup label="Font Tests">
+            <option value="vt100glyphs">VT100 Glyph Grid</option>
+            <option value="vt100linedraw">VT100 Line Drawing</option>
+            <option value="tdv2200banks">TDV2200 Font Banks</option>
+            <option value="tdv2215banks">TDV2215 Font Banks</option>
+            <option value="fontcompare">Font Size Comparison</option>
+          </optgroup>
+          <optgroup label="Stress">
+            <option value="rapid">Rapid Output</option>
+            <option value="scrollback">Large Scrollback</option>
+          </optgroup>
+        </select>
+      </label>
+      <button id="run-test">Run</button>
+      <button id="clear-btn">Clear</button>
+      <button id="vk-toggle">Virtual Keyboard</button>
+      <label>
+        VK Layout:
+        <select id="vk-layout">
+          <option value="full">Full</option>
+          <option value="compact">Compact</option>
+        </select>
+      </label>
+      <label>
+        KB Language:
+        <select id="vk-language">
+          <option value="no">Norwegian</option>
+          <option value="dk">Danish</option>
+          <option value="sv">Swedish</option>
+          <option value="de">German</option>
+          <option value="us">US ASCII</option>
+          <option value="fr">French</option>
+          <option value="en">English</option>
+          <option value="ch">Swiss</option>
+          <option value="fi">Finnish</option>
+          <option value="is">Icelandic</option>
+          <option value="sds">South Slavic</option>
+          <option value="fao">Faroese</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <div id="terminal-container"></div>
+    <div id="vk-container"></div>
+  </main>
+
+  <footer>
+    <div id="status">Ready</div>
+    <div id="key-display"></div>
+  </footer>
+
+  <script src="../dist/retroterm.js"></script>
+  <script src="demo.js"></script>
+</body>
+</html>

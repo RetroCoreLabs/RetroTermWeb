@@ -1,0 +1,40 @@
+{
+  "name": "@retroterm/web",
+  "version": "0.1.0",
+  "description": "TypeScript terminal emulator with VT100, TDV2215, and TDV2200 support",
+  "license": "MIT",
+  "main": "dist/retroterm.js",
+  "module": "dist/retroterm.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node esbuild.config.mjs && npm run build:types && npm run build:css",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist --noEmit false",
+    "build:css": "cp src/retroterm.css dist/retroterm.css",
+    "build:bundle": "node esbuild.config.mjs",
+    "build:watch": "node esbuild.config.mjs --watch",
+    "dev": "node esbuild.config.mjs --watch --serve",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest run --config vitest.ui.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:all": "vitest run && vitest run --config vitest.ui.config.ts && vitest run --config vitest.e2e.config.ts",
+    "typecheck": "tsc --noEmit",
+    "docs": "typedoc --out docs src/index.ts",
+    "clean": "rm -rf dist docs",
+    "prepublishOnly": "npm run clean && npm run build && npm run test:all"
+  },
+  "devDependencies": {
+    "canvas": "^3.2.1",
+    "esbuild": "^0.24",
+    "happy-dom": "^16.0",
+    "puppeteer": "^24.0",
+    "typedoc": "^0.27",
+    "typescript": "^5.7",
+    "vitest": "^3.0"
+  }
+}
