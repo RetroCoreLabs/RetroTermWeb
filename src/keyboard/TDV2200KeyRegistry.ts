@@ -551,7 +551,7 @@ function initializeLabels(): void {
   for (const [l,p,s] of b9) regLabel('B9', l, p, s, null);
 
   regLabelAll('B10', '-', '_', null);
-  regLabelAll('B11', '', null, null);
+  regLabelAll('B11', 'SHIFT', null, null);
   regLabelAll('B47', '\u2190', null, null);
   regLabelAll('B48', 'HOME', null, null);
   regLabelAll('B49', '\u2192', null, null);

@@ -44,6 +44,7 @@ const SHIFT_WIDTH = 128;
 const SPACE_WIDTH = 300;
 const RETURN_HEIGHT = 125;  // Double height
 const KP0_WIDTH = 125;     // Double width
+const RIGHT_COL_X = 1000;  // Column for DEL, LF, RETURN (right of main area)
 
 function navX(col: number): number { return NAV_X + col * (STD_SIZE + SPACING); }
 function funcX(col: number): number { return FUNC_X + col * (STD_SIZE + SPACING); }
@@ -86,7 +87,7 @@ function buildKeyLayouts(): KeyLayout[] {
   add('E0', mainX(0), ROW_Y['E'], CAPS_WIDTH);
   for (let i = 1; i <= 12; i++) add(`E${i}`, MAIN_X + CAPS_WIDTH + SPACING + (i - 1) * (STD_SIZE + SPACING), ROW_Y['E']);
   add('E13', MAIN_X + CAPS_WIDTH + SPACING + 12 * (STD_SIZE + SPACING), ROW_Y['E']);
-  add('E14', MAIN_X + CAPS_WIDTH + SPACING + 13 * (STD_SIZE + SPACING), ROW_Y['E']);
+  add('E14', RIGHT_COL_X, ROW_Y['E']);
   add('E47', navX(0), ROW_Y['E']);
   add('E48', navX(1), ROW_Y['E']);
   add('E49', navX(2), ROW_Y['E']);
@@ -99,7 +100,7 @@ function buildKeyLayouts(): KeyLayout[] {
   add('D99', mainX(0), ROW_Y['D']);
   add('D0', mainX(1), ROW_Y['D']);
   for (let i = 1; i <= 12; i++) add(`D${i}`, mainX(i + 1), ROW_Y['D']);
-  add('D13', mainX(14), ROW_Y['D']);
+  add('D13', RIGHT_COL_X, ROW_Y['D']);
   add('D47', navX(0), ROW_Y['D']);
   add('D48', navX(1), ROW_Y['D']);
   add('D49', navX(2), ROW_Y['D']);
@@ -112,7 +113,7 @@ function buildKeyLayouts(): KeyLayout[] {
   add('C99', mainX(0), ROW_Y['C']);
   add('C0', mainX(1), ROW_Y['C'], CAPS_WIDTH);
   for (let i = 1; i <= 12; i++) add(`C${i}`, mainX(1) + CAPS_WIDTH + SPACING + (i - 1) * (STD_SIZE + SPACING), ROW_Y['C']);
-  add('C13', mainX(1) + CAPS_WIDTH + SPACING + 12 * (STD_SIZE + SPACING), ROW_Y['C'], STD_SIZE, RETURN_HEIGHT);
+  add('C13', RIGHT_COL_X, ROW_Y['C'], STD_SIZE, RETURN_HEIGHT);
   add('C47', navX(0), ROW_Y['C']);
   add('C48', navX(1), ROW_Y['C']);
   add('C49', navX(2), ROW_Y['C']);
@@ -173,6 +174,7 @@ export class VirtualKeyboard {
   private _language: LanguageCode = 'no';
   private _visible: boolean = false;
   private _keyElements: Map<string, SVGGElement> = new Map();
+  private _toggleLeds: Map<string, SVGCircleElement> = new Map();
 
   // LED state
   private _ledClear: boolean = false;
@@ -303,6 +305,7 @@ export class VirtualKeyboard {
   private render(): void {
     this._container.innerHTML = '';
     this._keyElements.clear();
+    this._toggleLeds.clear();
 
     const layouts = this._layout === 'compact'
       ? ALL_LAYOUTS.filter(l => COMPACT_GRID_POSITIONS.has(l.gridPos))
@@ -325,6 +328,31 @@ export class VirtualKeyboard {
     svg.style.userSelect = 'none';
     svg.classList.add('retroterm-vk');
     this._svgRoot = svg;
+
+    // Gradient definitions for 3D concave key effect
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const gradients: [string, string, string][] = [
+      ['key-grad-white', '#e8e8e8', '#b0b0b0'],
+      ['key-grad-orange', '#d88830', '#a06020'],
+      ['key-grad-brown', '#9b7918', '#6b5010'],
+    ];
+    for (const [id, inner, outer] of gradients) {
+      const grad = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+      grad.setAttribute('id', id);
+      grad.setAttribute('cx', '50%');
+      grad.setAttribute('cy', '40%');
+      grad.setAttribute('r', '60%');
+      const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      stop1.setAttribute('offset', '0%');
+      stop1.setAttribute('stop-color', inner);
+      const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+      stop2.setAttribute('offset', '100%');
+      stop2.setAttribute('stop-color', outer);
+      grad.appendChild(stop1);
+      grad.appendChild(stop2);
+      defs.appendChild(grad);
+    }
+    svg.appendChild(defs);
 
     // Background
     const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -356,44 +384,96 @@ export class VirtualKeyboard {
     g.setAttribute('data-grid', layout.gridPos);
     g.style.cursor = 'pointer';
 
-    // Key background
+    const cx = layout.x + layout.width / 2;
+    const cy = layout.y + layout.height / 2;
+
+    // Key background with gradient fill for 3D concave look
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', String(layout.x));
     rect.setAttribute('y', String(layout.y));
     rect.setAttribute('width', String(layout.width));
     rect.setAttribute('height', String(layout.height));
     rect.setAttribute('rx', '4');
-    rect.setAttribute('fill', this.getKeyColor(keyDef.color));
+    rect.setAttribute('fill', this.getKeyGradient(keyDef.color));
     rect.setAttribute('stroke', '#555');
     rect.setAttribute('stroke-width', '1');
     g.appendChild(rect);
 
-    // Key label
-    const label = TDV2200KeyRegistry.getLabel(layout.gridPos, this._language);
-    if (label && label.primary) {
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.setAttribute('x', String(layout.x + layout.width / 2));
-      text.setAttribute('y', String(layout.y + layout.height / 2 + 4));
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('fill', this.getTextColor(keyDef.color));
-      text.setAttribute('font-size', label.primary.length > 4 ? '9' : '11');
-      text.setAttribute('font-family', 'sans-serif');
-      text.setAttribute('font-weight', 'bold');
-      text.textContent = label.primary;
-      g.appendChild(text);
+    // Inner concave circle for standard-size keys
+    const minDim = Math.min(layout.width, layout.height);
+    if (minDim >= 50) {
+      const inner = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+      inner.setAttribute('cx', String(cx));
+      inner.setAttribute('cy', String(cy));
+      inner.setAttribute('rx', String(Math.min(layout.width * 0.38, 24)));
+      inner.setAttribute('ry', String(Math.min(layout.height * 0.38, 24)));
+      inner.setAttribute('fill', 'rgba(0,0,0,0.08)');
+      inner.setAttribute('pointer-events', 'none');
+      g.appendChild(inner);
+    }
 
-      // Shifted label (smaller, top-right)
+    // SVG glyph for special keys, or text labels
+    const label = TDV2200KeyRegistry.getLabel(layout.gridPos, this._language);
+    const textColor = this.getTextColor(keyDef.color);
+
+    if (layout.gridPos === 'C13') {
+      // RETURN key: curved return-arrow glyph
+      this.addReturnGlyph(g, cx, cy, textColor);
+    } else if (layout.gridPos === 'E13') {
+      // NEWPARA/backspace key: leftward arrow with bar
+      this.addBackspaceGlyph(g, cx, cy, textColor);
+    } else if (label && label.primary) {
       if (label.shifted) {
+        // Stacked labels: shifted above center, primary below center
         const shiftText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        shiftText.setAttribute('x', String(layout.x + layout.width - 4));
-        shiftText.setAttribute('y', String(layout.y + 12));
-        shiftText.setAttribute('text-anchor', 'end');
-        shiftText.setAttribute('fill', this.getTextColor(keyDef.color));
-        shiftText.setAttribute('font-size', '8');
+        shiftText.setAttribute('x', String(cx));
+        shiftText.setAttribute('y', String(cy - 6));
+        shiftText.setAttribute('text-anchor', 'middle');
+        shiftText.setAttribute('fill', textColor);
+        shiftText.setAttribute('font-size', '11');
         shiftText.setAttribute('font-family', 'sans-serif');
-        shiftText.setAttribute('opacity', '0.7');
+        shiftText.setAttribute('font-weight', 'bold');
         shiftText.textContent = label.shifted;
         g.appendChild(shiftText);
+
+        const primText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        primText.setAttribute('x', String(cx));
+        primText.setAttribute('y', String(cy + 14));
+        primText.setAttribute('text-anchor', 'middle');
+        primText.setAttribute('fill', textColor);
+        primText.setAttribute('font-size', '11');
+        primText.setAttribute('font-family', 'sans-serif');
+        primText.setAttribute('font-weight', 'bold');
+        primText.textContent = label.primary;
+        g.appendChild(primText);
+      } else {
+        // Single centered label
+        const isToggle = !!(keyDef.flags & TDVKeyFlags.IsToggle);
+        const labelX = isToggle ? cx + 8 : cx;
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', String(labelX));
+        text.setAttribute('y', String(cy + 4));
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', textColor);
+        text.setAttribute('font-size', label.primary.length > 4 ? '9' : '11');
+        text.setAttribute('font-family', 'sans-serif');
+        text.setAttribute('font-weight', 'bold');
+        text.textContent = label.primary;
+        g.appendChild(text);
+
+        // LED indicator for toggle keys (CAPS, LOCK)
+        if (isToggle) {
+          const led = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          led.setAttribute('cx', String(layout.x + 14));
+          led.setAttribute('cy', String(cy));
+          led.setAttribute('r', '4');
+          led.setAttribute('fill', '#333');
+          led.setAttribute('stroke', '#666');
+          led.setAttribute('stroke-width', '0.5');
+          g.appendChild(led);
+          this._toggleLeds.set(layout.gridPos, led);
+        }
       }
     }
 
@@ -404,13 +484,43 @@ export class VirtualKeyboard {
       rect.setAttribute('fill', this.getPressedColor(keyDef.color));
     });
     g.addEventListener('mouseup', () => {
-      rect.setAttribute('fill', this.getKeyColor(keyDef.color));
+      rect.setAttribute('fill', this.getKeyGradient(keyDef.color));
     });
     g.addEventListener('mouseleave', () => {
-      rect.setAttribute('fill', this.getKeyColor(keyDef.color));
+      rect.setAttribute('fill', this.getKeyGradient(keyDef.color));
     });
 
     return g;
+  }
+
+  /** Draw a curved return-arrow glyph (like a real keyboard) */
+  private addReturnGlyph(g: SVGGElement, cx: number, cy: number, color: string): void {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    // Curved arrow: down from top-right, left, with arrowhead
+    const d = `M ${cx + 10} ${cy - 12} L ${cx + 10} ${cy + 2} Q ${cx + 10} ${cy + 6} ${cx + 6} ${cy + 6} L ${cx - 8} ${cy + 6} M ${cx - 8} ${cy + 6} L ${cx - 3} ${cy + 1} M ${cx - 8} ${cy + 6} L ${cx - 3} ${cy + 11}`;
+    path.setAttribute('d', d);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('pointer-events', 'none');
+    g.appendChild(path);
+  }
+
+  /** Draw a backspace/newpara arrow glyph (leftward arrow with bar) */
+  private addBackspaceGlyph(g: SVGGElement, cx: number, cy: number, color: string): void {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    // Leftward arrow with vertical bar at start
+    const d = `M ${cx + 12} ${cy} L ${cx - 6} ${cy} M ${cx - 6} ${cy} L ${cx - 1} ${cy - 6} M ${cx - 6} ${cy} L ${cx - 1} ${cy + 6} M ${cx - 10} ${cy - 8} L ${cx - 10} ${cy + 8}`;
+    path.setAttribute('d', d);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('pointer-events', 'none');
+    g.appendChild(path);
   }
 
   private handleKeyClick(gridPos: string, keyDef: TDVKeyDefinition): void {
@@ -477,6 +587,23 @@ export class VirtualKeyboard {
       cancelable: true,
     });
     (this._activeTerminal as any)._onKey?.fire({ key: seq, domEvent: syntheticEvent });
+  }
+
+  /** Set the toggle LED state for CAPS or LOCK keys */
+  updateToggleLED(gridPos: string, active: boolean): void {
+    const led = this._toggleLeds.get(gridPos);
+    if (led) {
+      led.setAttribute('fill', active ? '#00ff00' : '#333');
+    }
+  }
+
+  private getKeyGradient(color: TDVKeyColor): string {
+    switch (color) {
+      case TDVKeyColor.Orange: return 'url(#key-grad-orange)';
+      case TDVKeyColor.Brown: return 'url(#key-grad-brown)';
+      case TDVKeyColor.White:
+      default: return 'url(#key-grad-white)';
+    }
   }
 
   private getKeyColor(color: TDVKeyColor): string {
