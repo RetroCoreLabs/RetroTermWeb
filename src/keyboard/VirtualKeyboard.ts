@@ -44,7 +44,8 @@ const SHIFT_WIDTH = 128;
 const SPACE_WIDTH = 300;
 const RETURN_HEIGHT = 125;  // Double height
 const KP0_WIDTH = 125;     // Double width
-const RIGHT_COL_X = 1000;  // Column for DEL, LF, RETURN (right of main area)
+const RIGHT_COL_X = 975;   // Column for DEL, LF, RETURN (right of main area)
+const RSHIFT_WIDTH = 102;  // Narrower than LSHIFT to not overlap RETURN
 
 function navX(col: number): number { return NAV_X + col * (STD_SIZE + SPACING); }
 function funcX(col: number): number { return FUNC_X + col * (STD_SIZE + SPACING); }
@@ -125,7 +126,7 @@ function buildKeyLayouts(): KeyLayout[] {
   // B-row (ZXCV)
   add('B99', mainX(0), ROW_Y['B'], SHIFT_WIDTH);
   for (let i = 0; i <= 10; i++) add(`B${i}`, MAIN_X + SHIFT_WIDTH + SPACING + i * (STD_SIZE + SPACING), ROW_Y['B']);
-  add('B11', MAIN_X + SHIFT_WIDTH + SPACING + 11 * (STD_SIZE + SPACING), ROW_Y['B'], SHIFT_WIDTH);
+  add('B11', MAIN_X + SHIFT_WIDTH + SPACING + 11 * (STD_SIZE + SPACING), ROW_Y['B'], RSHIFT_WIDTH);
   add('B47', navX(0), ROW_Y['B']);
   add('B48', navX(1), ROW_Y['B']);
   add('B49', navX(2), ROW_Y['B']);
@@ -165,6 +166,24 @@ const COMPACT_GRID_POSITIONS = new Set([
   'E13', 'E14', 'D13', 'C13',
 ]);
 
+/** Arrow glyph definition for navigation keys */
+interface NavArrowGlyph {
+  dir: 'up' | 'down' | 'left' | 'right';
+  style: 'single' | 'double' | 'tab';
+}
+
+/** Navigation keys that should render SVG arrow glyphs instead of Unicode text */
+const NAV_ARROW_GLYPHS: Record<string, NavArrowGlyph> = {
+  'C48': { dir: 'up', style: 'single' },     // UP arrow
+  'A48': { dir: 'down', style: 'single' },    // DOWN arrow
+  'B47': { dir: 'left', style: 'single' },    // LEFT arrow
+  'B49': { dir: 'right', style: 'single' },   // RIGHT arrow
+  'C47': { dir: 'left', style: 'double' },    // FIELDLEFT (double arrow)
+  'C49': { dir: 'right', style: 'double' },   // FIELDRIGHT (double arrow)
+  'A47': { dir: 'left', style: 'tab' },       // TABLEFT (arrow with bar)
+  'A49': { dir: 'right', style: 'tab' },      // TABRIGHT (arrow with bar)
+};
+
 export class VirtualKeyboard {
   private _container: HTMLElement;
   private _svgRoot: SVGSVGElement | null = null;
@@ -184,6 +203,9 @@ export class VirtualKeyboard {
   // Modifier state for virtual clicks
   private _shiftActive: boolean = false;
   private _ctrlActive: boolean = false;
+
+  // Toggle key state (CAPS, LOCK)
+  private _toggleStates: Map<string, boolean> = new Map();
 
   constructor(container: HTMLElement) {
     this._container = container;
@@ -416,14 +438,27 @@ export class VirtualKeyboard {
     const label = TDV2200KeyRegistry.getLabel(layout.gridPos, this._language);
     const textColor = this.getTextColor(keyDef.color);
 
+    // Check if this nav key needs an SVG arrow glyph
+    const arrowGlyph = NAV_ARROW_GLYPHS[layout.gridPos];
+
     if (layout.gridPos === 'C13') {
       // RETURN key: curved return-arrow glyph
       this.addReturnGlyph(g, cx, cy, textColor);
     } else if (layout.gridPos === 'E13') {
       // NEWPARA/backspace key: leftward arrow with bar
       this.addBackspaceGlyph(g, cx, cy, textColor);
+    } else if (arrowGlyph) {
+      // Navigation arrow SVG glyph
+      this.addNavArrowGlyph(g, cx, cy, textColor, arrowGlyph);
     } else if (label && label.primary) {
-      if (label.shifted) {
+      // Determine if this is a letter key (A/a, B/b etc.) — skip stacked display
+      const isLetterKey = label.shifted !== null
+        && label.primary.length === 1
+        && label.shifted.length === 1
+        && label.primary.toUpperCase() === label.primary
+        && label.shifted === label.primary.toLowerCase();
+
+      if (label.shifted && !isLetterKey) {
         // Stacked labels: shifted above center, primary below center
         const shiftText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         shiftText.setAttribute('x', String(cx));
@@ -447,7 +482,7 @@ export class VirtualKeyboard {
         primText.textContent = label.primary;
         g.appendChild(primText);
       } else {
-        // Single centered label
+        // Single centered label (includes letter keys showing just uppercase)
         const isToggle = !!(keyDef.flags & TDVKeyFlags.IsToggle);
         const labelX = isToggle ? cx + 8 : cx;
 
@@ -523,6 +558,62 @@ export class VirtualKeyboard {
     g.appendChild(path);
   }
 
+  /** Draw navigation arrow glyphs (single, double, or tab arrows) */
+  private addNavArrowGlyph(g: SVGGElement, cx: number, cy: number, color: string, glyph: NavArrowGlyph): void {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const s = 10; // arrow half-size
+    const hs = 6; // arrowhead size
+    let d = '';
+
+    if (glyph.style === 'single') {
+      // Simple single arrow
+      switch (glyph.dir) {
+        case 'up':
+          d = `M ${cx} ${cy - s} L ${cx} ${cy + s} M ${cx} ${cy - s} L ${cx - hs} ${cy - s + hs} M ${cx} ${cy - s} L ${cx + hs} ${cy - s + hs}`;
+          break;
+        case 'down':
+          d = `M ${cx} ${cy + s} L ${cx} ${cy - s} M ${cx} ${cy + s} L ${cx - hs} ${cy + s - hs} M ${cx} ${cy + s} L ${cx + hs} ${cy + s - hs}`;
+          break;
+        case 'left':
+          d = `M ${cx - s} ${cy} L ${cx + s} ${cy} M ${cx - s} ${cy} L ${cx - s + hs} ${cy - hs} M ${cx - s} ${cy} L ${cx - s + hs} ${cy + hs}`;
+          break;
+        case 'right':
+          d = `M ${cx + s} ${cy} L ${cx - s} ${cy} M ${cx + s} ${cy} L ${cx + s - hs} ${cy - hs} M ${cx + s} ${cy} L ${cx + s - hs} ${cy + hs}`;
+          break;
+      }
+    } else if (glyph.style === 'double') {
+      // Double-headed arrow (field navigation)
+      const g2 = 3; // gap between the two arrowheads
+      switch (glyph.dir) {
+        case 'left':
+          d = `M ${cx - s} ${cy} L ${cx + s} ${cy} M ${cx - s} ${cy} L ${cx - s + hs} ${cy - hs} M ${cx - s} ${cy} L ${cx - s + hs} ${cy + hs} M ${cx - s + g2} ${cy} L ${cx - s + g2 + hs} ${cy - hs} M ${cx - s + g2} ${cy} L ${cx - s + g2 + hs} ${cy + hs}`;
+          break;
+        case 'right':
+          d = `M ${cx + s} ${cy} L ${cx - s} ${cy} M ${cx + s} ${cy} L ${cx + s - hs} ${cy - hs} M ${cx + s} ${cy} L ${cx + s - hs} ${cy + hs} M ${cx + s - g2} ${cy} L ${cx + s - g2 - hs} ${cy - hs} M ${cx + s - g2} ${cy} L ${cx + s - g2 - hs} ${cy + hs}`;
+          break;
+      }
+    } else if (glyph.style === 'tab') {
+      // Tab arrow (arrow with vertical bar at the end)
+      switch (glyph.dir) {
+        case 'left':
+          d = `M ${cx + s} ${cy} L ${cx - s + 4} ${cy} M ${cx - s + 4} ${cy} L ${cx - s + 4 + hs} ${cy - hs} M ${cx - s + 4} ${cy} L ${cx - s + 4 + hs} ${cy + hs} M ${cx - s} ${cy - 8} L ${cx - s} ${cy + 8}`;
+          break;
+        case 'right':
+          d = `M ${cx - s} ${cy} L ${cx + s - 4} ${cy} M ${cx + s - 4} ${cy} L ${cx + s - 4 - hs} ${cy - hs} M ${cx + s - 4} ${cy} L ${cx + s - 4 - hs} ${cy + hs} M ${cx + s} ${cy - 8} L ${cx + s} ${cy + 8}`;
+          break;
+      }
+    }
+
+    path.setAttribute('d', d);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    path.setAttribute('pointer-events', 'none');
+    g.appendChild(path);
+  }
+
   private handleKeyClick(gridPos: string, keyDef: TDVKeyDefinition): void {
     if (!this._activeTerminal) return;
 
@@ -538,13 +629,21 @@ export class VirtualKeyboard {
 
     // Handle toggle keys (CAPS, LOCK)
     if (keyDef.flags & TDVKeyFlags.IsToggle) {
-      return; // Toggle state handled by emulator
+      const current = this._toggleStates.get(gridPos) ?? false;
+      this._toggleStates.set(gridPos, !current);
+      this.updateToggleLED(gridPos, !current);
+      return;
     }
+
+    // Determine effective shift state (CAPS toggle inverts for letter keys)
+    const capsActive = this._toggleStates.get('E0') ?? false;
+    let effectiveShift = this._shiftActive;
+    if (capsActive) effectiveShift = !effectiveShift;
 
     // Get sequence from registry
     const seq = TDV2200KeyRegistry.getSequence(
       gridPos, true, false,
-      this._shiftActive, this._ctrlActive,
+      effectiveShift, this._ctrlActive,
     );
 
     if (seq !== null) {
@@ -554,7 +653,7 @@ export class VirtualKeyboard {
       const label = TDV2200KeyRegistry.getLabel(gridPos, this._language);
       if (label) {
         let ch: string | null = null;
-        if (this._shiftActive && label.shifted) {
+        if (effectiveShift && label.shifted) {
           ch = label.shifted;
         } else if (label.primary && label.primary.length === 1) {
           ch = label.primary;
