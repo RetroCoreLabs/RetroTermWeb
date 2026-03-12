@@ -14,6 +14,55 @@
 import type { IKeyboardMapper } from './KeyboardMapper';
 import { KeyModifiers, TerminalModes } from './KeyboardMapper';
 import { TDV2200KeyRegistry } from './TDV2200KeyRegistry';
+import type { LanguageCode } from './TDV2200KeyRegistry';
+
+/**
+ * ISO 8859-1 (8-bit) to ISO 646 (7-bit) character remapping tables.
+ * Browsers send 8-bit codepoints for national characters, but TDV terminals
+ * use 7-bit ISO 646 national variants where these characters replace
+ * ASCII punctuation at specific positions.
+ */
+const ISO646_REMAPPING: Record<string, Map<number, number>> = {
+  // Norwegian/Danish: ae=0x7B, oe=0x7C, aa=0x7D, AE=0x5B, OE=0x5C, AA=0x5D
+  no: new Map<number, number>([
+    [0xE6, 0x7B], // ae -> {
+    [0xF8, 0x7C], // oe -> |
+    [0xE5, 0x7D], // aa -> }
+    [0xC6, 0x5B], // AE -> [
+    [0xD8, 0x5C], // OE -> backslash
+    [0xC5, 0x5D], // AA -> ]
+  ]),
+  dk: new Map<number, number>([
+    [0xE6, 0x7B], [0xF8, 0x7C], [0xE5, 0x7D],
+    [0xC6, 0x5B], [0xD8, 0x5C], [0xC5, 0x5D],
+  ]),
+  sv: new Map<number, number>([
+    [0xE4, 0x7B], // a-umlaut -> {
+    [0xF6, 0x7C], // o-umlaut -> |
+    [0xE5, 0x7D], // a-ring -> }
+    [0xC4, 0x5B], [0xD6, 0x5C], [0xC5, 0x5D],
+  ]),
+  fi: new Map<number, number>([
+    [0xE4, 0x7B], [0xF6, 0x7C], [0xE5, 0x7D],
+    [0xC4, 0x5B], [0xD6, 0x5C], [0xC5, 0x5D],
+  ]),
+  de: new Map<number, number>([
+    [0xE4, 0x7B], [0xF6, 0x7C], [0xFC, 0x7D], // u-umlaut -> }
+    [0xC4, 0x5B], [0xD6, 0x5C], [0xDC, 0x5D],
+  ]),
+  ch: new Map<number, number>([
+    [0xE4, 0x7B], [0xF6, 0x7C], [0xFC, 0x7D],
+    [0xC4, 0x5B], [0xD6, 0x5C], [0xDC, 0x5D],
+  ]),
+  fr: new Map<number, number>([
+    [0xE9, 0x7B], // e-acute -> {
+    [0xF9, 0x7C], // u-grave -> |
+    [0xE8, 0x7D], // e-grave -> }
+    [0xB0, 0x5B], // degree -> [
+    [0xE7, 0x5C], // c-cedilla -> backslash
+    [0xA7, 0x5D], // section -> ]
+  ]),
+};
 
 export class TDVKeyboardMapper implements IKeyboardMapper {
   /** Whether Extended Control Mode is active (CSI sequences vs C0 codes) */
@@ -21,6 +70,9 @@ export class TDVKeyboardMapper implements IKeyboardMapper {
 
   /** Whether Numeric Pad Function Mode is active */
   numericPadFuncMode: boolean = false;
+
+  /** Current keyboard language for ISO 646 remapping */
+  language: LanguageCode = 'no';
 
   mapKey(keyCode: number, modifiers: KeyModifiers, terminalModes: TerminalModes): string | null {
     // 1. Alt key bindings (Alt+H → HELP, etc.)
@@ -69,5 +121,22 @@ export class TDVKeyboardMapper implements IKeyboardMapper {
 
     // 5. No fallback
     return null;
+  }
+
+  /**
+   * Remap an 8-bit ISO 8859-1 character to 7-bit ISO 646 national variant.
+   * Returns the remapped character, or the original if no mapping exists.
+   */
+  remapCharacter(char: string): string {
+    if (char.length !== 1) return char;
+    const code = char.charCodeAt(0);
+    if (code < 0x80) return char; // Already 7-bit ASCII
+    const langMap = ISO646_REMAPPING[this.language];
+    if (!langMap) return char;
+    const mapped = langMap.get(code);
+    if (mapped !== undefined) {
+      return String.fromCharCode(mapped);
+    }
+    return char;
   }
 }

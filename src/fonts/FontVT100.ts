@@ -152,7 +152,10 @@ export class FontVT100 extends FontBase {
     this.width = 8;
     this.stretchY = 1;
     this.includeBlankSpace = true;
-    this.fontNumOffset = [0];
+    // Font 0: Standard ASCII (glyphs at ROM 0x00-0x7F)
+    // Font 1: DEC Special Graphics (same ROM data, but line drawing chars
+    //         are accessed at ROM 0x00-0x1F via BitmapFontRenderer DEC SG mapping)
+    this.fontNumOffset = [0, 0];
     this.mapSpaceChar = 0;
     this.glyphs = GLYPHS;
   }

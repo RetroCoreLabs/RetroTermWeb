@@ -134,8 +134,9 @@ export class SelectionManager {
   /**
    * Extract selected text from the buffer.
    * Trims trailing whitespace from each line and joins with newlines.
+   * @param scrollOffset - Current scroll offset (0 = live view, >0 = scrolled back)
    */
-  getSelectedText(buffer: TerminalBuffer, cols: number): string {
+  getSelectedText(buffer: TerminalBuffer, cols: number, scrollOffset: number = 0): string {
     if (!this._selection) return '';
     const s = this._selection;
     const lines: string[] = [];
@@ -154,7 +155,14 @@ export class SelectionManager {
 
       let line = '';
       for (let col = startCol; col <= endCol && col < cols; col++) {
-        const cell = buffer.getCell(row, col);
+        // Use viewport cell when scrolled back to read from scrollback buffer
+        const cell = scrollOffset > 0
+          ? buffer.getViewportCell(row, col, scrollOffset)
+          : buffer.getCell(row, col);
+        if (!cell) {
+          line += ' ';
+          continue;
+        }
         const cp = cell.codepoint;
         line += cp > 0 ? String.fromCodePoint(cp) : ' ';
       }

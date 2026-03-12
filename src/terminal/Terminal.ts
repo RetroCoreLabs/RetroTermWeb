@@ -307,6 +307,11 @@ export class Terminal {
     return this._emulatorType;
   }
 
+  /** Set the keyboard language for ISO 646 character remapping */
+  setKeyboardLanguage(language: string): void {
+    this._tdvKeyboardMapper.language = language as any;
+  }
+
   /** Get the renderer (for FitAddon and external use) */
   getRenderer(): CanvasRenderer | null {
     return this._renderer;
@@ -314,7 +319,7 @@ export class Terminal {
 
   /** Get selected text, if any */
   getSelectedText(): string {
-    return this._selectionManager.getSelectedText(this._emulator.buffer, this._cols);
+    return this._selectionManager.getSelectedText(this._emulator.buffer, this._cols, this._scrollOffset);
   }
 
   /** Check if a selection exists */
@@ -460,7 +465,12 @@ export class Terminal {
     // For regular character input (not handled by keydown)
     if (ev.key.length === 1 && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
       ev.preventDefault();
-      this._onKey.fire({ key: ev.key, domEvent: ev });
+      // Apply ISO 646 national character remapping for TDV modes
+      let key = ev.key;
+      if (this._emulatorType === 'tdv2200' || this._emulatorType === 'tdv2215') {
+        key = this._tdvKeyboardMapper.remapCharacter(key);
+      }
+      this._onKey.fire({ key, domEvent: ev });
     }
   };
 

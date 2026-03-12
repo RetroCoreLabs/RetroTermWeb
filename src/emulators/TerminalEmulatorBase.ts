@@ -408,11 +408,22 @@ export class TerminalEmulatorBase {
       case 0x6C: // l — RM (Reset Mode) — standard modes
         this.handleStandardMode(parser, false);
         break;
-      case 0x71: // q — DECSCUSR (with SP intermediate)
+      case 0x71: // q — DECSCUSR (with SP intermediate) or DECSCA (with " intermediate)
         {
           const intermediates = parser.getIntermediates();
           if (intermediates.length > 0 && intermediates[0] === 0x20) { // SP
             this.handleCursorStyle(parser.getParam(0, 0));
+          }
+          // DECSCA — Select Character Protection Attribute (CSI Ps " q)
+          if (intermediates.length > 0 && intermediates[0] === 0x22) { // "
+            const ps = parser.getParam(0, 0);
+            if (ps === 1) {
+              // Enable protected attribute for subsequent characters
+              this.currentAttributes = setAttribute(this.currentAttributes, CharacterAttributes.Protected);
+            } else {
+              // Disable protected attribute (ps=0 or ps=2)
+              this.currentAttributes = clearAttribute(this.currentAttributes, CharacterAttributes.Protected);
+            }
           }
         }
         break;
@@ -845,8 +856,12 @@ export class TerminalEmulatorBase {
       this.shiftCharactersRight(this.cursor.row, this.cursor.column, 1);
     }
 
-    // Apply character set mapping
-    const mapped = this.applyCharacterSetMapping(codepoint, this.characterSets[this.activeCharacterSet]);
+    // Determine active character set designation (G0-G3 -> charset number)
+    const activeCharSetDesignation = this.characterSets[this.activeCharacterSet];
+
+    // Apply character set mapping (Unicode for system fonts)
+    // When bitmap fonts are used, the renderer handles DEC SG mapping via fontNumber
+    const mapped = this.applyCharacterSetMapping(codepoint, activeCharSetDesignation);
 
     // Write to buffer
     const cell = this.buffer.getCellRef(this.cursor.row, this.cursor.column);
@@ -854,7 +869,7 @@ export class TerminalEmulatorBase {
     cell.attributes = this.currentAttributes;
     cell.foreground = this.currentForeground;
     cell.background = this.currentBackground;
-    cell.characterSet = this.currentCharacterSet;
+    cell.characterSet = activeCharSetDesignation;
 
     // Advance cursor
     if (this.cursor.column < this.width - 1) {

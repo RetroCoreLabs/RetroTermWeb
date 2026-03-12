@@ -68,6 +68,10 @@
       </label>
       <button id="run-test">Run</button>
       <button id="clear-btn">Clear</button>
+      <button id="zoom-out" title="Zoom Out (Ctrl+-)">-</button>
+      <span id="zoom-level">100%</span>
+      <button id="zoom-in" title="Zoom In (Ctrl+=)">+</button>
+      <button id="zoom-reset" title="Reset Zoom">1:1</button>
       <button id="vk-toggle">Virtual Keyboard</button>
       <label>
         VK Layout:
@@ -97,7 +101,9 @@
   </header>
 
   <main>
-    <div id="terminal-container"></div>
+    <div id="terminal-wrapper">
+      <div id="terminal-container"></div>
+    </div>
     <div id="vk-container"></div>
   </main>
 

@@ -241,6 +241,61 @@ export class VirtualKeyboard {
     this._ledClear = clear;
     this._ledSet = set;
     this._ledBlink = blink;
+    this.renderLEDIndicators();
+  }
+
+  /** Render LED indicator circles on the keyboard SVG */
+  private renderLEDIndicators(): void {
+    if (!this._svgRoot) return;
+
+    // Remove existing LED indicators
+    const existing = this._svgRoot.querySelectorAll('.retroterm-led');
+    for (let i = 0; i < existing.length; i++) existing[i].remove();
+
+    const ledDefs = [
+      { label: 'CLR', on: this._ledClear, blink: false, x: 20, y: -15 },
+      { label: 'SET', on: this._ledSet, blink: false, x: 80, y: -15 },
+      { label: 'BLK', on: this._ledBlink, blink: true, x: 140, y: -15 },
+    ];
+
+    for (const led of ledDefs) {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.classList.add('retroterm-led');
+
+      // LED circle
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', String(led.x));
+      circle.setAttribute('cy', String(led.y));
+      circle.setAttribute('r', '6');
+      circle.setAttribute('fill', led.on ? '#00ff00' : '#333333');
+      circle.setAttribute('stroke', '#666');
+      circle.setAttribute('stroke-width', '1');
+
+      // Blink animation
+      if (led.on && led.blink) {
+        const animate = document.createElementNS('http://www.w3.org/2000/svg', 'animate');
+        animate.setAttribute('attributeName', 'fill');
+        animate.setAttribute('values', '#00ff00;#333333;#00ff00');
+        animate.setAttribute('dur', '1s');
+        animate.setAttribute('repeatCount', 'indefinite');
+        circle.appendChild(animate);
+      }
+
+      g.appendChild(circle);
+
+      // LED label
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', String(led.x));
+      text.setAttribute('y', String(led.y + 18));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', '#999');
+      text.setAttribute('font-size', '8');
+      text.setAttribute('font-family', 'sans-serif');
+      text.textContent = led.label;
+      g.appendChild(text);
+
+      this._svgRoot.appendChild(g);
+    }
   }
 
   // --- Rendering ---
@@ -383,26 +438,45 @@ export class VirtualKeyboard {
     );
 
     if (seq !== null) {
-      // Send via onKey event with a synthetic KeyboardEvent
-      const syntheticEvent = new KeyboardEvent('keydown', {
-        key: seq,
-        bubbles: false,
-        cancelable: true,
-      });
-      // Fire through Terminal's onKey
-      this._activeTerminal.write(''); // Trigger focus
-      // Encode sequence as bytes and send via onData path
-      const bytes = new Uint8Array(seq.length);
-      for (let i = 0; i < seq.length; i++) {
-        bytes[i] = seq.charCodeAt(i);
+      this.sendSequence(seq);
+    } else {
+      // No escape sequence — fall back to ASCII based on label and shift state
+      const label = TDV2200KeyRegistry.getLabel(gridPos, this._language);
+      if (label) {
+        let ch: string | null = null;
+        if (this._shiftActive && label.shifted) {
+          ch = label.shifted;
+        } else if (label.primary && label.primary.length === 1) {
+          ch = label.primary;
+        }
+        if (ch !== null && ch.length === 1) {
+          // Handle Ctrl+key: generate control code
+          if (this._ctrlActive) {
+            const code = ch.toUpperCase().charCodeAt(0);
+            if (code >= 0x40 && code <= 0x5F) {
+              this.sendSequence(String.fromCharCode(code - 0x40));
+            }
+          } else {
+            this.sendSequence(ch);
+          }
+        }
       }
-      // Emit through the terminal's data pipeline
-      (this._activeTerminal as any)._onKey?.fire({ key: seq, domEvent: syntheticEvent });
     }
 
     // Reset modifiers after key press (sticky behavior)
     this._shiftActive = false;
     this._ctrlActive = false;
+  }
+
+  /** Send a key sequence to the active terminal */
+  private sendSequence(seq: string): void {
+    if (!this._activeTerminal) return;
+    const syntheticEvent = new KeyboardEvent('keydown', {
+      key: seq,
+      bubbles: false,
+      cancelable: true,
+    });
+    (this._activeTerminal as any)._onKey?.fire({ key: seq, domEvent: syntheticEvent });
   }
 
   private getKeyColor(color: TDVKeyColor): string {

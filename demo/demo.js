@@ -87,6 +87,8 @@
   vkToggleBtn.addEventListener('click', function () {
     vk.toggle();
     vkToggleBtn.textContent = vk.visible ? 'Hide Keyboard' : 'Virtual Keyboard';
+    // Re-apply zoom to account for changed available space
+    setTimeout(applyZoom, 50);
   });
 
   vkLayoutSelect.addEventListener('change', function () {
@@ -94,9 +96,108 @@
   });
 
   vkLanguageSelect.addEventListener('change', function () {
-    vk.setLanguage(vkLanguageSelect.value);
+    var lang = vkLanguageSelect.value;
+    vk.setLanguage(lang);
+    // Also update keyboard mapper language for ISO 646 character remapping
+    if (term.setKeyboardLanguage) {
+      term.setKeyboardLanguage(lang);
+    }
   });
 
+  // Zoom controls
+  var zoomLevel = 100;
+  var zoomLevelEl = document.getElementById('zoom-level');
+  var zoomInBtn = document.getElementById('zoom-in');
+  var zoomOutBtn = document.getElementById('zoom-out');
+  var zoomResetBtn = document.getElementById('zoom-reset');
+  var termWrapper = document.getElementById('terminal-wrapper');
+
+  function applyZoom() {
+    var scale = zoomLevel / 100;
+    if (scale === 1) {
+      // At 100%, let flex layout handle everything naturally
+      container.style.transform = '';
+      container.style.width = '';
+      container.style.height = '';
+      termWrapper.style.height = '';
+    } else {
+      // Get the wrapper's natural flex size (before we override it)
+      container.style.transform = '';
+      container.style.width = '';
+      container.style.height = '';
+      termWrapper.style.height = '';
+
+      // Force layout recalc to get natural dimensions
+      var naturalWidth = termWrapper.offsetWidth;
+      var naturalHeight = termWrapper.offsetHeight;
+
+      // Set the container to natural size explicitly (transform needs fixed dimensions)
+      container.style.width = naturalWidth + 'px';
+      container.style.height = naturalHeight + 'px';
+      container.style.transform = 'scale(' + scale + ')';
+      container.style.transformOrigin = 'top left';
+
+      // Adjust wrapper to match the visual (scaled) height
+      termWrapper.style.height = Math.round(naturalHeight * scale) + 'px';
+    }
+    zoomLevelEl.textContent = zoomLevel + '%';
+  }
+
+  function getMaxZoom() {
+    // Temporarily reset to measure natural dimensions
+    var savedTransform = container.style.transform;
+    var savedW = container.style.width;
+    var savedH = container.style.height;
+    var savedWH = termWrapper.style.height;
+    container.style.transform = '';
+    container.style.width = '';
+    container.style.height = '';
+    termWrapper.style.height = '';
+
+    var naturalHeight = termWrapper.offsetHeight;
+
+    // Restore
+    container.style.transform = savedTransform;
+    container.style.width = savedW;
+    container.style.height = savedH;
+    termWrapper.style.height = savedWH;
+
+    if (naturalHeight <= 0) return 300;
+    // Max zoom = available space / natural height (wrapper already gets flex:1 of available)
+    return Math.max(25, Math.min(300, Math.floor(100))); // At 100%, it already fills; limit to 100% when VK visible
+  }
+
+  zoomInBtn.addEventListener('click', function () {
+    zoomLevel = Math.min(300, zoomLevel + 25);
+    applyZoom();
+  });
+
+  zoomOutBtn.addEventListener('click', function () {
+    zoomLevel = Math.max(25, zoomLevel - 25);
+    applyZoom();
+  });
+
+  zoomResetBtn.addEventListener('click', function () {
+    zoomLevel = 100;
+    applyZoom();
+  });
+
+  // Keyboard shortcuts for zoom
+  document.addEventListener('keydown', function (ev) {
+    if (ev.ctrlKey && (ev.key === '=' || ev.key === '+')) {
+      ev.preventDefault();
+      zoomLevel = Math.min(300, zoomLevel + 25);
+      applyZoom();
+    } else if (ev.ctrlKey && ev.key === '-') {
+      ev.preventDefault();
+      zoomLevel = Math.max(25, zoomLevel - 25);
+      applyZoom();
+    } else if (ev.ctrlKey && ev.key === '0') {
+      ev.preventDefault();
+      zoomLevel = 100;
+      applyZoom();
+    }
+  });
 
   runBtn.addEventListener('click', function () {
     var testName = testSelect.value;

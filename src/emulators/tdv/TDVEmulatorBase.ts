@@ -181,6 +181,22 @@ export abstract class TDVEmulatorBase extends TerminalEmulatorBase implements IC
   /** Handle ND-specific CSI sequences */
   protected handleNDSpecificSequence(finalByte: number, parser: EscapeSequenceParser): boolean {
     const privateMarker = parser.privateMarker;
+    const intermediates = parser.getIntermediates();
+
+    // SPA/EPA: CSI Ps " q (intermediate 0x22, final byte 0x71)
+    if (finalByte === 0x71 && intermediates.length > 0 && intermediates[0] === 0x22) {
+      const ps = parser.getParam(0, 0);
+      if (ps === 1) {
+        // SPA — Start Protected Area at cursor position
+        this.protectedAreas.setProtectedArea(this.cursor.row, this.cursor.column);
+        return true;
+      }
+      if (ps === 2) {
+        // EPA — End Protected Area at cursor position
+        this.protectedAreas.clearProtectedArea(this.cursor.row, this.cursor.column);
+        return true;
+      }
+    }
 
     // DEC private mode sequences (?Nh / ?Nl)
     if (privateMarker === 0x3F && (finalByte === 0x68 || finalByte === 0x6C)) {

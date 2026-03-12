@@ -4,26 +4,28 @@
  * Supports both system fonts (VT100) and bitmap fonts (TDV).
  *
  * Rendering strategy:
- * - Canvas is rendered at native resolution (charWidth * cols x charHeight * rows)
- * - CSS scaling fills the container (image-rendering: pixelated for bitmap fonts)
+ * - Canvas is rendered at display resolution (container size * devicePixelRatio)
+ * - Bitmap glyphs are scaled up to fill display cells (no CSS upscaling needed)
  * - Dirty tracking only re-renders changed cells
  * - RequestAnimationFrame coalesces multiple writes
  */
 
 import { TerminalBuffer } from '../buffer/TerminalBuffer';
-import { CursorState } from '../emulators/CursorState';
+import { CursorState, CursorStyle } from '../emulators/CursorState';
 import { SystemFontRenderer } from './SystemFontRenderer';
 import { BitmapFontRenderer } from './BitmapFontRenderer';
 import { FontTDV2200 } from '../fonts/FontTDV2200';
 import { FontTDV2215 } from '../fonts/FontTDV2215';
 import { FontVT100 } from '../fonts/FontVT100';
 import { RenderState } from './RenderState';
+import { CharacterAttributes, hasAttribute } from '../buffer/CharacterAttributes';
 import type { TerminalTheme } from '../terminal/TerminalOptions';
 import type { SelectionManager } from '../features/SelectionManager';
 import type { ScrollbackSearch } from '../features/ScrollbackSearch';
 
 export class CanvasRenderer {
   private _canvas: HTMLCanvasElement;
+  private _container: HTMLElement;
   private _ctx: CanvasRenderingContext2D;
   private _systemFontRenderer: SystemFontRenderer;
   private _bitmapFontRenderer: BitmapFontRenderer | null = null;
@@ -39,6 +41,8 @@ export class CanvasRenderer {
   private _resizeObserver: ResizeObserver | null = null;
   private _lastSyncedVariant: number = 0;
   private _bitmapEmulatorType: string = '';
+  /** Scale multiplier for bitmap rendering (integer multiple of native) */
+  private _bitmapScale: number = 1;
 
   constructor(
     container: HTMLElement,
@@ -55,10 +59,9 @@ export class CanvasRenderer {
     // Create canvas
     this._canvas = document.createElement('canvas');
     this._canvas.className = 'retroterm-canvas retroterm-system';
-    this._canvas.style.width = '100%';
-    this._canvas.style.height = '100%';
     this._canvas.style.display = 'block';
     this._canvas.tabIndex = 0;
+    this._container = container;
     container.appendChild(this._canvas);
 
     const ctx = this._canvas.getContext('2d');
@@ -76,16 +79,19 @@ export class CanvasRenderer {
     // Initialize render state
     this._renderState = new RenderState(cols, rows);
 
-    // Start cursor blink
+    // Start cursor blink (also drives character blink attribute)
     this._cursorBlinkTimer = window.setInterval(() => {
       this._cursorBlinkOn = !this._cursorBlinkOn;
+      if (this._bitmapFontRenderer) {
+        this._bitmapFontRenderer.blinkOn = this._cursorBlinkOn;
+      }
       this._renderState.markCursorDirty();
       this.scheduleRender();
     }, 500);
 
-    // Watch for container resize
+    // Watch for container resize — update CSS display size to fit
     this._resizeObserver = new ResizeObserver(() => {
-      // CSS scaling handles resize — no re-rendering needed
+      this._fitCanvasToContainer();
     });
     this._resizeObserver.observe(container);
   }
@@ -100,6 +106,21 @@ export class CanvasRenderer {
   get charHeight(): number {
     if (this._useBitmapFont && this._bitmapFontRenderer) {
       return this._bitmapFontRenderer.charHeight;
+    }
+    return this._systemFontRenderer.charHeight;
+  }
+
+  /** Rendering cell width (bitmap charWidth * scale) */
+  get renderCellWidth(): number {
+    if (this._useBitmapFont && this._bitmapFontRenderer) {
+      return this._bitmapFontRenderer.charWidth * this._bitmapScale;
+    }
+    return this._systemFontRenderer.charWidth;
+  }
+  /** Rendering cell height (bitmap charHeight * scale) */
+  get renderCellHeight(): number {
+    if (this._useBitmapFont && this._bitmapFontRenderer) {
+      return this._bitmapFontRenderer.charHeight * this._bitmapScale;
     }
     return this._systemFontRenderer.charHeight;
   }
@@ -122,8 +143,8 @@ export class CanvasRenderer {
     scrollOffset: number = 0,
   ): void {
     const ctx = this._ctx;
-    const cw = this.charWidth;
-    const ch = this.charHeight;
+    const cw = this.renderCellWidth;
+    const ch = this.renderCellHeight;
 
     // Clear with background
     ctx.fillStyle = this._theme.background ?? '#000000';
@@ -143,28 +164,39 @@ export class CanvasRenderer {
           const x = col * cw;
           const y = row * ch;
 
-          // Draw background
-          let bg = this._theme.background ?? '#000000';
-          if (!cell.background.isDefault) {
-            const rgb = cell.background.toRgb();
-            bg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
-          }
-          if (isSelected) {
-            bg = this._theme.selectionBackground ?? 'rgba(100,100,255,0.5)';
-          }
-          ctx.fillStyle = bg;
-          ctx.fillRect(x, y, cw, ch);
-
-          // Draw character with bitmap font
+          // Resolve fg and bg colors
           let fg = this._theme.foreground ?? '#ffffff';
+          let bg = this._theme.background ?? '#000000';
           if (!cell.foreground.isDefault) {
             const rgb = cell.foreground.toRgb();
             fg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
           }
-          if (cell.codepoint > 0x20 || cell.fontNumber > 0) {
+          if (!cell.background.isDefault) {
+            const rgb = cell.background.toRgb();
+            bg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+          }
+
+          // Reverse video: swap fg/bg
+          if (hasAttribute(cell.attributes, CharacterAttributes.Reverse)) {
+            const tmp = fg;
+            fg = bg;
+            bg = tmp;
+          }
+
+          // Selection overrides background
+          if (isSelected) {
+            bg = this._theme.selectionBackground ?? 'rgba(100,100,255,0.5)';
+          }
+
+          // Draw background
+          ctx.fillStyle = bg;
+          ctx.fillRect(x, y, cw, ch);
+
+          // Draw character with bitmap font
+          if (cell.codepoint > 0x20 || cell.fontNumber > 0 || cell.characterSet === 2) {
             this._bitmapFontRenderer.drawCharacter(
               ctx, cell.codepoint, cell.fontNumber, cell.attributes,
-              x, y, fg, cw, ch,
+              x, y, fg, cw, ch, cell.characterSet,
             );
           }
         } else {
@@ -190,7 +222,7 @@ export class CanvasRenderer {
 
     // Hide cursor when scrolled back
     if (scrollOffset === 0) {
-      this._systemFontRenderer.renderCursor(ctx, cursor, this._theme, this._cursorBlinkOn);
+      this.renderCursorWithCorrectDimensions(ctx, cursor);
     }
 
     this._renderState.clearDirty();
@@ -210,8 +242,8 @@ export class CanvasRenderer {
     }
 
     const ctx = this._ctx;
-    const cw = this.charWidth;
-    const ch = this.charHeight;
+    const cw = this.renderCellWidth;
+    const ch = this.renderCellHeight;
 
     for (let row = 0; row < this._rows; row++) {
       if (this._renderState.isRowDirty(row)) {
@@ -229,28 +261,40 @@ export class CanvasRenderer {
 
           if (this._useBitmapFont && this._bitmapFontRenderer) {
             const x = col * cw;
-            // Draw background
-            let bg = this._theme.background ?? '#000000';
-            if (!cell.background.isDefault) {
-              const rgb = cell.background.toRgb();
-              bg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
-            }
-            if (isSelected) {
-              bg = this._theme.selectionBackground ?? 'rgba(100,100,255,0.5)';
-            }
-            ctx.fillStyle = bg;
-            ctx.fillRect(x, y, cw, ch);
 
-            // Draw character with bitmap font
+            // Resolve fg and bg colors
             let fg = this._theme.foreground ?? '#ffffff';
+            let bg = this._theme.background ?? '#000000';
             if (!cell.foreground.isDefault) {
               const rgb = cell.foreground.toRgb();
               fg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
             }
-            if (cell.codepoint > 0x20 || cell.fontNumber > 0) {
+            if (!cell.background.isDefault) {
+              const rgb = cell.background.toRgb();
+              bg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+            }
+
+            // Reverse video: swap fg/bg
+            if (hasAttribute(cell.attributes, CharacterAttributes.Reverse)) {
+              const tmp = fg;
+              fg = bg;
+              bg = tmp;
+            }
+
+            // Selection overrides background
+            if (isSelected) {
+              bg = this._theme.selectionBackground ?? 'rgba(100,100,255,0.5)';
+            }
+
+            // Draw background
+            ctx.fillStyle = bg;
+            ctx.fillRect(x, y, cw, ch);
+
+            // Draw character with bitmap font
+            if (cell.codepoint > 0x20 || cell.fontNumber > 0 || cell.characterSet === 2) {
               this._bitmapFontRenderer.drawCharacter(
                 ctx, cell.codepoint, cell.fontNumber, cell.attributes,
-                x, y, fg, cw, ch,
+                x, y, fg, cw, ch, cell.characterSet,
               );
             }
           } else {
@@ -262,7 +306,7 @@ export class CanvasRenderer {
 
     // Hide cursor when scrolled back
     if (scrollOffset === 0) {
-      this._systemFontRenderer.renderCursor(ctx, cursor, this._theme, this._cursorBlinkOn);
+      this.renderCursorWithCorrectDimensions(ctx, cursor);
     }
     this._renderState.clearDirty();
   }
@@ -306,11 +350,47 @@ export class CanvasRenderer {
     }
 
     this._canvas.className = 'retroterm-canvas retroterm-bitmap';
-    this._canvas.style.imageRendering = 'pixelated';
-    this._canvas.width = this._bitmapFontRenderer!.charWidth * this._cols;
-    this._canvas.height = this._bitmapFontRenderer!.charHeight * this._rows;
+    this._canvas.style.imageRendering = 'auto';
+
+    // Render at 3x native resolution — small enough to be cheap,
+    // large enough that CSS bilinear scaling looks clean in both directions
+    this._bitmapScale = 3;
+    this._canvas.width = this._bitmapFontRenderer!.charWidth * this._cols * this._bitmapScale;
+    this._canvas.height = this._bitmapFontRenderer!.charHeight * this._rows * this._bitmapScale;
+
+    // Set CSS display size to fit within the container
+    this._fitCanvasToContainer();
 
     this._renderState.markAllDirty();
+  }
+
+  /** Render cursor using the correct character dimensions (bitmap or system font) */
+  private renderCursorWithCorrectDimensions(ctx: CanvasRenderingContext2D, cursor: CursorState): void {
+    if (!cursor.visible) return;
+    if (!this._cursorBlinkOn) return;
+
+    const cw = this.renderCellWidth;
+    const ch = this.renderCellHeight;
+    const x = cursor.column * cw;
+    const y = cursor.row * ch;
+    ctx.fillStyle = this._theme.cursor ?? this._theme.foreground ?? '#ffffff';
+
+    switch (cursor.style) {
+      case CursorStyle.Block:
+      case CursorStyle.BlinkingBlock:
+        ctx.globalAlpha = 0.5;
+        ctx.fillRect(x, y, cw, ch);
+        ctx.globalAlpha = 1.0;
+        break;
+      case CursorStyle.Underline:
+      case CursorStyle.BlinkingUnderline:
+        ctx.fillRect(x, y + ch - 2, cw, 2);
+        break;
+      case CursorStyle.Bar:
+      case CursorStyle.BlinkingBar:
+        ctx.fillRect(x, y, 2, ch);
+        break;
+    }
   }
 
   /** Get the bitmap font renderer, if active */
@@ -334,13 +414,47 @@ export class CanvasRenderer {
     }
   }
 
+  /**
+   * Fit the canvas CSS display size to the container while maintaining aspect ratio.
+   * The canvas pixel buffer may be larger (e.g., 3x for quality) — CSS scales it down.
+   */
+  private _fitCanvasToContainer(): void {
+    if (!this._useBitmapFont || !this._bitmapFontRenderer) {
+      // System font: no scaling needed, canvas pixels = display pixels
+      this._canvas.style.width = '';
+      this._canvas.style.height = '';
+      return;
+    }
+
+    const containerW = this._container.clientWidth;
+    const containerH = this._container.clientHeight;
+    if (containerW === 0 || containerH === 0) return;
+
+    // Native (1x) dimensions of the terminal
+    const nativeW = this._bitmapFontRenderer.charWidth * this._cols;
+    const nativeH = this._bitmapFontRenderer.charHeight * this._rows;
+
+    // Scale to fit container, maintaining aspect ratio
+    const scaleW = containerW / nativeW;
+    const scaleH = containerH / nativeH;
+    const fitScale = Math.min(scaleW, scaleH);
+
+    // Use integer pixel sizes to avoid sub-pixel blurriness
+    const displayW = Math.floor(nativeW * fitScale);
+    const displayH = Math.floor(nativeH * fitScale);
+
+    this._canvas.style.width = displayW + 'px';
+    this._canvas.style.height = displayH + 'px';
+  }
+
   /** Resize the renderer */
   resize(cols: number, rows: number): void {
     this._cols = cols;
     this._rows = rows;
-    this._canvas.width = this.charWidth * cols;
-    this._canvas.height = this.charHeight * rows;
     this._renderState.resize(cols, rows);
+    this._canvas.width = this.renderCellWidth * cols;
+    this._canvas.height = this.renderCellHeight * rows;
+    this._fitCanvasToContainer();
   }
 
   /** Clean up resources */
