@@ -16,7 +16,7 @@
     overflow: hidden;
   }
 
-  /* ===== TERMINAL WINDOW (glass morphism, same as template-glass) ===== */
+  /* ===== TERMINAL WINDOW (same as template-glass styles.css:787) ===== */
   .terminal-window {
     position: fixed;
     top: 60px;
@@ -27,13 +27,14 @@
     background: rgba(12, 16, 35, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 16px;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5), 0 0 60px rgba(0, 130, 143, 0.06);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    font-family: 'Fira Mono', 'SF Mono', 'Monaco', 'Consolas', monospace;
+    font-size: 12px;
     user-select: none;
   }
-
   .terminal-window::before {
     content: '';
     position: absolute;
@@ -48,8 +49,17 @@
     position: relative;
     z-index: 1;
   }
+  .terminal-window.maximized {
+    top: 49px !important;
+    left: 0 !important;
+    bottom: auto;
+    width: calc(100vw * var(--ui-zoom, 1)) !important;
+    height: calc((100vh - 49px) * var(--ui-zoom, 1)) !important;
+    border-radius: 0;
+    transform: none;
+  }
 
-  /* ===== HEADER (same as template-glass) ===== */
+  /* ===== HEADER (same as template-glass styles.css:831) ===== */
   .terminal-window-header {
     display: flex;
     justify-content: space-between;
@@ -59,12 +69,66 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     cursor: grab;
     flex-shrink: 0;
-    font-size: 13px;
+  }
+  .terminal-window-header:active { cursor: grabbing; }
+  .terminal-window-title {
     font-weight: 700;
+    font-size: 13px;
     color: rgba(180, 230, 225, 0.95);
+    letter-spacing: 0.5px;
+  }
+  .terminal-window-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .term-header-select {
+    padding: 3px 6px;
+    font-size: 11px;
+    min-width: 100px;
+    max-width: 140px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    background: rgba(15, 20, 40, 0.5);
+    color: rgba(180, 200, 220, 0.8);
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .term-header-select:hover { border-color: rgba(255, 255, 255, 0.15); }
+  .term-header-select:focus { outline: none; border-color: rgba(100, 130, 255, 0.4); }
+  .term-header-select option { background: #1a1e35; color: #c8d0e0; }
+  .term-font-size-badge {
+    font-size: 10px;
+    font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+    color: rgba(180, 200, 230, 0.45);
+    white-space: nowrap;
+    min-width: 30px;
+    text-align: right;
+    letter-spacing: -0.3px;
+    user-select: none;
+  }
+  .terminal-window-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(200, 210, 230, 0.6);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0;
+    min-width: 28px;
+    transition: all 0.2s;
+  }
+  .terminal-window-btn:hover {
+    background: rgba(100, 130, 255, 0.3);
+    color: #fff;
   }
 
-  /* ===== BODY (same as template-glass) ===== */
+  /* ===== BODY (same as template-glass styles.css:869) ===== */
   .terminal-window-body {
     flex: 1;
     overflow: hidden;
@@ -73,7 +137,7 @@
     min-height: 0;
   }
 
-  /* ===== TABS (same as template-glass) ===== */
+  /* ===== TABS (same as template-glass styles.css:711) ===== */
   .terminal-tabs {
     display: flex;
     gap: 4px;
@@ -111,7 +175,7 @@
     color: rgba(200, 210, 230, 0.8);
   }
 
-  /* ===== CONTAINER (same as template-glass) ===== */
+  /* ===== CONTAINER (same as template-glass styles.css:749) ===== */
   .terminal-container {
     background: transparent;
     border-top: none;
@@ -127,14 +191,51 @@
     flex: 1;
   }
 
-  /* ===== CANVAS (same as template-glass) ===== */
+  /* ===== CANVAS (same as template-glass styles.css:2625) ===== */
   .terminal-container canvas.retroterm-canvas {
     display: block;
     will-change: transform;
   }
 
+  /* ===== RESIZE HANDLE (same as template-glass styles.css:607) ===== */
+  .glass-resize-handle {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    height: 20px;
+    cursor: nwse-resize;
+    z-index: 10;
+  }
+  .glass-resize-handle::before,
+  .glass-resize-handle::after {
+    content: '';
+    position: absolute;
+    background: rgba(180, 210, 230, 0.3);
+    border-radius: 1px;
+  }
+  .glass-resize-handle::before {
+    bottom: 4px; right: 4px;
+    width: 10px; height: 2px;
+    transform: rotate(-45deg); transform-origin: bottom right;
+  }
+  .glass-resize-handle::after {
+    bottom: 4px; right: 4px;
+    width: 2px; height: 10px;
+    transform: rotate(-45deg); transform-origin: bottom right;
+  }
+  .glass-resize-grip {
+    position: absolute;
+    bottom: 3px; right: 3px;
+    width: 12px; height: 12px;
+    opacity: 0.4;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+  .glass-resize-handle:hover .glass-resize-grip { opacity: 0.8; }
+
   /* ===== LOADING OVERLAY ===== */
-  #loading-overlay {
+  .loading-overlay {
     position: absolute;
     inset: 0;
     background: rgba(10, 14, 28, 0.95);
@@ -146,7 +247,7 @@
     font-size: 14px;
     transition: opacity 0.3s;
   }
-  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
 
   /* ===== CONTROLS ===== */
   #controls {
@@ -197,17 +298,48 @@
 </head>
 <body>
 
-<!-- Glass terminal window (same structure as template-glass) -->
-<div class="terminal-window" id="terminal-window">
+<!-- Glass terminal window (same structure as template-glass index.html:532-588) -->
+<div id="terminal-window" class="terminal-window">
   <div class="terminal-window-header" id="terminal-window-header">
-    <span>Glass Repro - TDV2200</span>
-    <span id="status" class="status">initializing...</span>
+    <span class="terminal-window-title" id="terminal-window-title">Console (TDV2200)</span>
+    <div class="terminal-window-controls">
+      <span class="term-font-size-badge" id="console-fontsize">bitmap</span>
+      <select id="font-family-select" class="term-header-select" title="Font">
+        <option value="monospace" selected>Monospace</option>
+        <option value="'VT323', monospace">VT323</option>
+        <option value="'Fira Mono', monospace">Fira Mono</option>
+      </select>
+      <select id="color-theme-select" class="term-header-select" title="Color Theme">
+        <option value="green" selected>Green</option>
+        <option value="amber">Amber</option>
+        <option value="white">White</option>
+      </select>
+      <button class="terminal-window-btn" id="term-vk-toggle" title="Virtual Keyboard" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/>
+          <line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/>
+          <line x1="8" y1="16" x2="16" y2="16"/>
+        </svg>
+      </button>
+      <button class="terminal-window-btn" id="term-maximize" title="Maximize">
+        <svg id="term-maximize-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9,1 13,1 13,5"/>
+          <line x1="13" y1="1" x2="8" y2="6"/>
+          <polyline points="5,13 1,13 1,9"/>
+          <line x1="1" y1="13" x2="6" y2="8"/>
+        </svg>
+      </button>
+    </div>
   </div>
   <div class="terminal-window-body" id="terminal-window-body">
-    <div class="terminal-tabs" id="terminal-tabs">
-      <!-- Tabs created dynamically -->
-    </div>
-    <!-- Terminal containers created dynamically (same as template-glass) -->
+    <div class="terminal-tabs" id="terminal-tabs"></div>
+    <!-- Terminal containers created dynamically -->
+  </div>
+  <div class="glass-resize-handle" id="terminal-window-resize">
+    <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+      <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
+    </svg>
   </div>
 </div>
 
@@ -248,7 +380,7 @@
   <hr>
   <span class="section-label">Behavior Toggles (reload to apply)</span>
   <div class="variant-row">
-    <button id="tog-charbychar" title="Write one char at a time like WASM ring buffer dispatch">char-by-char</button>
+    <button id="tog-charbychar" title="Write one char at a time like WASM ring buffer">char-by-char</button>
     <button id="tog-fontdelay" title="Wait for document.fonts.ready before terminal init">font delay</button>
     <button id="tog-overlay" class="active" title="Loading overlay over terminal">overlay</button>
     <button id="tog-twotabs" title="Create 2 tabs (switch between them)">2 tabs</button>
@@ -274,6 +406,8 @@
   var statusEl = document.getElementById('status');
   var logEl = document.getElementById('log');
   var termWindow = document.getElementById('terminal-window');
+  var termHeader = document.getElementById('terminal-window-header');
+  var resizeHandle = document.getElementById('terminal-window-resize');
 
   // ===== CONFIG FLAGS (URL params) =====
   var params = new URLSearchParams(location.search);
@@ -282,7 +416,6 @@
   var SHOW_OVERLAY = params.get('overlay') !== '0';
   var TWO_TABS = params.get('twotabs') === '1';
 
-  // Reflect in buttons
   if (CHAR_BY_CHAR) document.getElementById('tog-charbychar').classList.add('active');
   if (FONT_DELAY) document.getElementById('tog-fontdelay').classList.add('active');
   if (!SHOW_OVERLAY) document.getElementById('tog-overlay').classList.remove('active');
@@ -300,7 +433,7 @@
   log('overlay: ' + SHOW_OVERLAY);
   log('two-tabs: ' + TWO_TABS);
 
-  // ===== ZOOM SYSTEM (same as template-glass) =====
+  // ===== ZOOM SYSTEM (same as template-glass index.html:43-59) =====
   var currentZoom = 0.7;
 
   function applyZoom(z) {
@@ -326,34 +459,152 @@
     }, 100);
   });
 
-  // ===== TERMINAL MANAGEMENT =====
-  // Mirrors template-glass terminal-manager.ts
+  // ===== DRAGGABLE (same as template-glass toolbar.js:50-83) =====
+  (function() {
+    var dragging = false, ox = 0, oy = 0;
 
-  var terminals = {};       // { identCode: { term, container, resize } }
+    termHeader.addEventListener('mousedown', function(e) {
+      if (e.target.closest('button') || e.target.closest('select')) return;
+      if (termWindow.classList.contains('maximized')) return;
+      dragging = true;
+      ox = e.clientX - termWindow.getBoundingClientRect().left;
+      oy = e.clientY - termWindow.getBoundingClientRect().top;
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!dragging) return;
+      termWindow.style.left = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - ox)) + 'px';
+      termWindow.style.top = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - oy)) + 'px';
+      termWindow.style.bottom = 'auto';
+      termWindow.style.right = 'auto';
+      termWindow.style.transform = 'none';
+    });
+
+    document.addEventListener('mouseup', function() {
+      if (dragging) {
+        dragging = false;
+        try {
+          localStorage.setItem('glass-repro-term-pos', JSON.stringify({
+            left: termWindow.style.left,
+            top: termWindow.style.top,
+            width: termWindow.style.width,
+            height: termWindow.style.height
+          }));
+        } catch(e) {}
+      }
+    });
+
+    // Restore position
+    try {
+      var pos = JSON.parse(localStorage.getItem('glass-repro-term-pos'));
+      if (pos) {
+        if (pos.left) {
+          termWindow.style.left = Math.max(0, Math.min(parseInt(pos.left) || 0, window.innerWidth - 200)) + 'px';
+          termWindow.style.top = Math.max(0, Math.min(parseInt(pos.top) || 0, window.innerHeight - 100)) + 'px';
+          termWindow.style.bottom = 'auto';
+          termWindow.style.transform = 'none';
+        }
+        if (pos.width) termWindow.style.width = Math.min(parseInt(pos.width) || 860, window.innerWidth - 20) + 'px';
+        if (pos.height) termWindow.style.height = pos.height;
+      }
+    } catch(e) {}
+  })();
+
+  // ===== RESIZABLE (same as template-glass toolbar.js:1267-1320) =====
+  (function() {
+    var resizing = false;
+    var startX, startY, startW, startH;
+    var minW = 400, minH = 300;
+
+    resizeHandle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      resizing = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startW = termWindow.offsetWidth;
+      startH = termWindow.offsetHeight;
+      termWindow.style.transform = 'none';
+      if (!termWindow.style.left || termWindow.style.left === '') {
+        var rect = termWindow.getBoundingClientRect();
+        termWindow.style.left = rect.left + 'px';
+        termWindow.style.top = rect.top + 'px';
+      }
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!resizing) return;
+      termWindow.style.width = Math.max(minW, startW + (e.clientX - startX)) + 'px';
+      termWindow.style.height = Math.max(minH, startH + (e.clientY - startY)) + 'px';
+    });
+
+    document.addEventListener('mouseup', function() {
+      if (resizing) {
+        resizing = false;
+        try {
+          localStorage.setItem('glass-repro-term-size', JSON.stringify({
+            width: termWindow.style.width,
+            height: termWindow.style.height
+          }));
+        } catch(e) {}
+        // Resize terminals after window resize
+        setTimeout(resizeAll, 50);
+      }
+    });
+
+    // Restore saved size
+    try {
+      var saved = JSON.parse(localStorage.getItem('glass-repro-term-size'));
+      if (saved && saved.width && saved.height) {
+        termWindow.style.width = saved.width;
+        termWindow.style.height = saved.height;
+      }
+    } catch(e) {}
+  })();
+
+  // ===== MAXIMIZE (same as template-glass toolbar.js:1164-1191) =====
+  (function() {
+    var termMaxBtn = document.getElementById('term-maximize');
+    var termMaxIcon = document.getElementById('term-maximize-icon');
+    var expandSVG = '<polyline points="9,1 13,1 13,5"/><line x1="13" y1="1" x2="8" y2="6"/><polyline points="5,13 1,13 1,9"/><line x1="1" y1="13" x2="6" y2="8"/>';
+    var collapseSVG = '<polyline points="5,1 1,1 1,5"/><line x1="1" y1="1" x2="6" y2="6"/><polyline points="9,13 13,13 13,9"/><line x1="13" y1="13" x2="8" y2="8"/>';
+
+    termMaxBtn.addEventListener('click', function() {
+      if (termWindow.classList.contains('maximized')) {
+        termWindow.classList.remove('maximized');
+        termMaxIcon.innerHTML = expandSVG;
+        termMaxBtn.title = 'Maximize';
+      } else {
+        termWindow.classList.add('maximized');
+        termMaxIcon.innerHTML = collapseSVG;
+        termMaxBtn.title = 'Restore';
+      }
+      setTimeout(resizeAll, 50);
+    });
+  })();
+
+  // ===== TERMINAL MANAGEMENT =====
+  var terminals = {};
   var activeTerminalId = 1;
 
   function createTerminal(identCode, name) {
     log('createTerminal(' + identCode + ', "' + name + '")');
 
-    // Create container (same as terminal-manager.ts line 209-213)
     var container = document.createElement('div');
     container.id = 'terminal-container-' + identCode;
-    // In template-glass: identCode===1 gets .active, others don't
     container.className = 'terminal-container' + (identCode === 1 ? ' active' : '');
 
-    // Add loading overlay if enabled
     if (SHOW_OVERLAY) {
       var ol = document.createElement('div');
+      ol.className = 'loading-overlay';
       ol.id = 'loading-overlay-' + identCode;
-      ol.style.cssText = 'position:absolute;inset:0;background:rgba(10,14,28,0.95);display:flex;align-items:center;justify-content:center;z-index:100;color:rgba(0,200,143,0.7);font-size:14px;transition:opacity 0.3s';
       ol.textContent = 'Waiting for boot...';
       container.appendChild(ol);
     }
 
-    // Insert after tabs (same as template-glass)
     termWindowBody.appendChild(container);
 
-    // Create tab (same as terminal-manager.ts line 222-228)
     var tab = document.createElement('div');
     tab.className = 'terminal-tab' + (identCode === 1 ? ' active' : '');
     tab.dataset.terminal = identCode;
@@ -364,7 +615,6 @@
       switchTerminal(identCode);
     });
 
-    // Create terminal (same as terminal-core.ts createScaledTerminal)
     var term = new RetroTerm.Terminal({
       rows: 24,
       cols: 80,
@@ -378,9 +628,8 @@
 
     var fitAddon = new RetroTerm.FitAddon();
     term.loadAddon(fitAddon);
-
-    // term.open() — container may be display:none if not identCode===1
     term.open(container);
+
     log('term.open() into container (display:' +
         (container.classList.contains('active') ? 'flex' : 'none') + ')');
 
@@ -408,12 +657,10 @@
   function switchTerminal(identCode) {
     log('switchTerminal(' + identCode + ')');
 
-    // Toggle tab active (same as terminal-manager.ts switchTerminal)
     document.querySelectorAll('.terminal-tab').forEach(function(tab) {
       tab.classList.toggle('active', parseInt(tab.dataset.terminal) === identCode);
     });
 
-    // Toggle container active (same as terminal-manager.ts)
     Object.keys(terminals).forEach(function(id) {
       var cont = terminals[parseInt(id)].container;
       cont.classList.toggle('active', parseInt(id) === identCode);
@@ -421,10 +668,8 @@
 
     activeTerminalId = identCode;
 
-    // Focus the active terminal
     if (terminals[identCode]) {
       terminals[identCode].term.focus();
-      // Resize after switching (container just went from none→flex)
       setTimeout(function() { terminals[identCode].resize(); }, 0);
     }
   }
@@ -435,6 +680,7 @@
         terminals[parseInt(id)].resize();
       }
     });
+    log('resize triggered');
   }
 
   // ===== INIT SEQUENCE =====
@@ -442,22 +688,16 @@
   function initializeTerminals() {
     log('initializeTerminals()');
 
-    // Create terminal 1 (console) — always created first
     var term1 = createTerminal(1, 'Console');
-
-    // Wire keyboard echo for terminal 1
     wireKeyboard(term1);
 
     if (TWO_TABS) {
-      // Create terminal 2 (second terminal)
       var term2 = createTerminal(2, 'Terminal 2');
       wireKeyboard(term2);
     }
 
-    // Same as template-glass: switchTerminal(1) at end of init
     switchTerminal(1);
 
-    // Double-rAF initial resize
     requestAnimationFrame(function() {
       requestAnimationFrame(function() {
         resizeAll();
@@ -466,23 +706,19 @@
       });
     });
 
-    // Simulate boot output after delay
     setTimeout(function() {
-      // Hide overlay
       Object.keys(terminals).forEach(function(id) {
         var ol = document.getElementById('loading-overlay-' + id);
         if (ol) {
-          ol.style.opacity = '0';
+          ol.classList.add('hidden');
           setTimeout(function() { ol.style.display = 'none'; }, 300);
         }
       });
-
       sintranBanner();
       log('boot complete');
     }, SHOW_OVERLAY ? 800 : 300);
   }
 
-  // Simulate template-glass: loadDiskImages → fonts.ready → initTerminals
   if (FONT_DELAY) {
     log('waiting for document.fonts.ready...');
     document.fonts.ready.then(function() {
@@ -494,9 +730,6 @@
   }
 
   // ===== HOST WRITE =====
-  // template-glass dispatches one char at a time from the ring buffer:
-  //   handleTerminalOutputFromC(identCode, charCode)
-  //     → terminals[identCode].term.write(String.fromCharCode(charCode))
 
   function hostWrite(text) {
     var t = terminals[activeTerminalId];
@@ -576,7 +809,6 @@
 
   document.getElementById('btn-send-cr').addEventListener('click', function() {
     hostWrite('\r\n@');
-    log('sent CR + prompt');
   });
 
   document.getElementById('btn-send-lines').addEventListener('click', function() {
@@ -586,10 +818,8 @@
 
   document.getElementById('btn-send-banner').addEventListener('click', function() {
     sintranBanner();
-    log('sent SINTRAN banner');
   });
 
-  // Zoom slider
   var zoomSlider = document.getElementById('zoom-slider');
   var zoomVal = document.getElementById('zoom-val');
   zoomSlider.addEventListener('input', function() {
@@ -598,7 +828,6 @@
     applyZoom(z);
   });
 
-  // Feed buttons
   var feedTimer = null;
 
   function startFeed(intervalMs) {
@@ -643,7 +872,7 @@
     log('screen cleared');
   });
 
-  // ===== BEHAVIOR TOGGLES (reload via URL params) =====
+  // ===== BEHAVIOR TOGGLES =====
   function setParam(key, val) {
     var u = new URL(location.href);
     u.searchParams.set(key, val);
@@ -663,7 +892,7 @@
     setParam('twotabs', TWO_TABS ? '0' : '1');
   });
 
-  // ===== CSS TOGGLES (live) =====
+  // ===== CSS TOGGLES =====
   function toggle(btnId, applyFn) {
     var btn = document.getElementById(btnId);
     btn.addEventListener('click', function() {
