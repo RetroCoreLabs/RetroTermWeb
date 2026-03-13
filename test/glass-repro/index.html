@@ -5,16 +5,98 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Glass Repro - Canvas Rendering Artifact Test</title>
 <link rel="stylesheet" href="../../dist/retroterm.css">
+<!-- Google Fonts (same as template-glass index.html:37) -->
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Fira+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;700&family=Source+Code+Pro:wght@400;700&family=Courier+Prime:wght@400;700&family=Share+Tech+Mono&family=Anonymous+Pro:wght@400;700&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    background: #0a0e1c;
-    color: #ccc;
-    font-family: 'Fira Mono', monospace;
+    margin: 0; padding: 0;
     min-height: 100vh;
+    background: linear-gradient(135deg, #0a0c1a 0%, #111336 25%, #0b0f20 50%, #1a0e38 75%, #0a0c1a 100%);
+    background-attachment: fixed;
+    color: #d8dde8;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     overflow: hidden;
   }
+
+  /* ===== ANIMATED BACKGROUND ORBS (same as template-glass) ===== */
+  .bg-effects {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .bg-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.15;
+  }
+  .bg-orb-1 {
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, #5b6abf, transparent 70%);
+    top: -250px; right: -150px;
+    animation: orb-float-1 22s ease-in-out infinite;
+  }
+  .bg-orb-2 {
+    width: 550px; height: 550px;
+    background: radial-gradient(circle, #7b4fa2, transparent 70%);
+    bottom: -200px; left: -100px;
+    animation: orb-float-2 28s ease-in-out infinite;
+  }
+  .bg-orb-3 {
+    width: 450px; height: 450px;
+    background: radial-gradient(circle, #2090c0, transparent 70%);
+    top: 40%; left: 40%;
+    animation: orb-float-3 18s ease-in-out infinite;
+  }
+  @keyframes orb-float-1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(-60px, 40px) scale(1.05); }
+    66% { transform: translate(30px, -30px) scale(0.95); }
+  }
+  @keyframes orb-float-2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(50px, -40px) scale(1.08); }
+    66% { transform: translate(-40px, 30px) scale(0.92); }
+  }
+  @keyframes orb-float-3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-30px, -50px) scale(1.1); }
+  }
+
+  /* ===== TOOLBAR (same as template-glass) ===== */
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 16px;
+    background: rgba(12, 16, 35, 0.85);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    color: rgba(200, 210, 230, 0.8);
+    font-size: 13px;
+  }
+  .toolbar-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(200, 210, 230, 0.7);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .toolbar-btn:hover { background: rgba(100, 130, 255, 0.3); color: #fff; }
 
   /* ===== TERMINAL WINDOW (same as template-glass styles.css:787) ===== */
   .terminal-window {
@@ -298,21 +380,46 @@
 </head>
 <body>
 
+<!-- Animated background orbs (same as template-glass) -->
+<div class="bg-effects">
+  <div class="bg-orb bg-orb-1"></div>
+  <div class="bg-orb bg-orb-2"></div>
+  <div class="bg-orb bg-orb-3"></div>
+</div>
+
+<!-- Toolbar (same as template-glass) -->
+<div class="toolbar">
+  <div style="display:flex;align-items:center;gap:10px">
+    <strong style="color:rgba(0,200,143,0.9)">ND-100/CX</strong>
+    <button class="toolbar-btn" id="toolbar-power">Power</button>
+    <button class="toolbar-btn" id="toolbar-boot">Boot SMD</button>
+    <button class="toolbar-btn" id="toolbar-stop">Stop</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span style="font-size:11px;opacity:0.5">Glass Repro Test</span>
+  </div>
+</div>
+
 <!-- Glass terminal window (same structure as template-glass index.html:532-588) -->
 <div id="terminal-window" class="terminal-window">
   <div class="terminal-window-header" id="terminal-window-header">
-    <span class="terminal-window-title" id="terminal-window-title">Console (TDV2200)</span>
+    <span class="terminal-window-title" id="terminal-window-title">Console (TDV2200) <span id="status" class="status">initializing...</span></span>
     <div class="terminal-window-controls">
       <span class="term-font-size-badge" id="console-fontsize">bitmap</span>
       <select id="font-family-select" class="term-header-select" title="Font">
         <option value="monospace" selected>Monospace</option>
         <option value="'VT323', monospace">VT323</option>
         <option value="'Fira Mono', monospace">Fira Mono</option>
+        <option value="'IBM Plex Mono', monospace">IBM Plex</option>
+        <option value="'Cascadia Mono', monospace">Cascadia</option>
+        <option value="'Source Code Pro', monospace">Source Code</option>
       </select>
       <select id="color-theme-select" class="term-header-select" title="Color Theme">
         <option value="green" selected>Green</option>
         <option value="amber">Amber</option>
         <option value="white">White</option>
+        <option value="blue">Blue</option>
+        <option value="paperwhite">Paper</option>
       </select>
       <button class="terminal-window-btn" id="term-vk-toggle" title="Virtual Keyboard" style="display:none">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -336,6 +443,8 @@
     <div class="terminal-tabs" id="terminal-tabs"></div>
     <!-- Terminal containers created dynamically -->
   </div>
+  <!-- Virtual Keyboard container (RetroTerm only, same as template-glass index.html:583) -->
+  <div id="virtual-keyboard-container" style="display:none"></div>
   <div class="glass-resize-handle" id="terminal-window-resize">
     <svg class="glass-resize-grip" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
       <line x1="11" y1="1" x2="1" y2="11"/><line x1="11" y1="5" x2="5" y2="11"/><line x1="11" y1="9" x2="9" y2="11"/>
@@ -381,7 +490,6 @@
   <span class="section-label">Behavior Toggles (reload to apply)</span>
   <div class="variant-row">
     <button id="tog-charbychar" title="Write one char at a time like WASM ring buffer">char-by-char</button>
-    <button id="tog-fontdelay" title="Wait for document.fonts.ready before terminal init">font delay</button>
     <button id="tog-overlay" class="active" title="Loading overlay over terminal">overlay</button>
     <button id="tog-twotabs" title="Create 2 tabs (switch between them)">2 tabs</button>
   </div>
@@ -412,12 +520,10 @@
   // ===== CONFIG FLAGS (URL params) =====
   var params = new URLSearchParams(location.search);
   var CHAR_BY_CHAR = params.get('charbychar') === '1';
-  var FONT_DELAY = params.get('fontdelay') === '1';
   var SHOW_OVERLAY = params.get('overlay') !== '0';
   var TWO_TABS = params.get('twotabs') === '1';
 
   if (CHAR_BY_CHAR) document.getElementById('tog-charbychar').classList.add('active');
-  if (FONT_DELAY) document.getElementById('tog-fontdelay').classList.add('active');
   if (!SHOW_OVERLAY) document.getElementById('tog-overlay').classList.remove('active');
   if (TWO_TABS) document.getElementById('tog-twotabs').classList.add('active');
 
@@ -429,7 +535,6 @@
   }
 
   log('char-by-char: ' + CHAR_BY_CHAR);
-  log('font-delay: ' + FONT_DELAY);
   log('overlay: ' + SHOW_OVERLAY);
   log('two-tabs: ' + TWO_TABS);
 
@@ -698,6 +803,57 @@
 
     switchTerminal(1);
 
+    // Hide font dropdown for RetroTerm (bitmap fonts only, same as template-glass terminal-manager.ts:688-690)
+    var fontSelect = document.getElementById('font-family-select');
+    if (fontSelect) fontSelect.style.display = 'none';
+    document.getElementById('console-fontsize').textContent = 'bitmap';
+
+    // Wire up color theme select (same as template-glass terminal-manager.ts:135-160)
+    var colorThemes = {
+      green:      { background: 'transparent', foreground: '#00FF00', cursor: '#00FF00' },
+      amber:      { background: 'transparent', foreground: '#FFBF00', cursor: '#FFBF00' },
+      white:      { background: 'transparent', foreground: '#F8F8F8', cursor: '#F8F8F8' },
+      blue:       { background: 'transparent', foreground: '#00BFFF', cursor: '#00BFFF' },
+      paperwhite: { background: '#f0f0f5',     foreground: '#222222', cursor: '#222222' }
+    };
+    var colorSelect = document.getElementById('color-theme-select');
+    if (colorSelect) {
+      colorSelect.addEventListener('change', function() {
+        var theme = colorThemes[colorSelect.value] || colorThemes.green;
+        Object.keys(terminals).forEach(function(id) {
+          var t = terminals[parseInt(id)].term;
+          t.options.theme = theme;
+        });
+        log('color: ' + colorSelect.value);
+      });
+    }
+
+    // Initialize Virtual Keyboard (same as template-glass terminal-manager.ts:626-650)
+    var vkContainer = document.getElementById('virtual-keyboard-container');
+    if (vkContainer && RetroTerm.VirtualKeyboard) {
+      try {
+        var vk = new RetroTerm.VirtualKeyboard(vkContainer);
+        Object.keys(terminals).forEach(function(id) {
+          vk.attachTerminal(terminals[parseInt(id)].term, 'Terminal ' + id);
+        });
+        // Show VK toggle button
+        var vkBtn = document.getElementById('term-vk-toggle');
+        if (vkBtn) {
+          vkBtn.style.display = '';
+          vkBtn.addEventListener('click', function() {
+            if (vkContainer.style.display === 'none') {
+              vkContainer.style.display = '';
+            } else {
+              vkContainer.style.display = 'none';
+            }
+          });
+        }
+        log('VirtualKeyboard initialized');
+      } catch(e) {
+        log('VirtualKeyboard init failed: ' + e);
+      }
+    }
+
     requestAnimationFrame(function() {
       requestAnimationFrame(function() {
         resizeAll();
@@ -719,15 +875,12 @@
     }, SHOW_OVERLAY ? 800 : 300);
   }
 
-  if (FONT_DELAY) {
-    log('waiting for document.fonts.ready...');
-    document.fonts.ready.then(function() {
-      log('fonts ready');
-      initializeTerminals();
-    });
-  } else {
+  // Real template-glass ALWAYS waits for document.fonts.ready (module-init.js:417)
+  log('waiting for document.fonts.ready...');
+  document.fonts.ready.then(function() {
+    log('fonts ready');
     initializeTerminals();
-  }
+  });
 
   // ===== HOST WRITE =====
 
@@ -881,9 +1034,6 @@
 
   document.getElementById('tog-charbychar').addEventListener('click', function() {
     setParam('charbychar', CHAR_BY_CHAR ? '0' : '1');
-  });
-  document.getElementById('tog-fontdelay').addEventListener('click', function() {
-    setParam('fontdelay', FONT_DELAY ? '0' : '1');
   });
   document.getElementById('tog-overlay').addEventListener('click', function() {
     setParam('overlay', SHOW_OVERLAY ? '0' : '1');
