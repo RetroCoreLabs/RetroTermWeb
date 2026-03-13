@@ -276,6 +276,7 @@ export class TDV2200Emulator extends TDVEmulatorBase {
     cell.foreground = this.currentForeground;
     cell.background = this.currentBackground;
     cell.fontNumber = fontNumber;
+    cell.characterSet = this.characterSets[this.activeCharacterSet];
 
     // Advance cursor
     if (this.cursor.column < this.width - 1) {

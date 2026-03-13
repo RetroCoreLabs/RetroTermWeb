@@ -142,6 +142,12 @@ export class CanvasRenderer {
     searchManager?: ScrollbackSearch,
     scrollOffset: number = 0,
   ): void {
+    // Ensure CSS fit is applied before rendering — guards against the race
+    // where the first render fires before _fitCanvasToContainer() succeeded.
+    if (this._useBitmapFont && this._canvas.style.width === '') {
+      this._fitCanvasToContainer();
+    }
+
     const ctx = this._ctx;
     const cw = this.renderCellWidth;
     const ch = this.renderCellHeight;
@@ -418,7 +424,7 @@ export class CanvasRenderer {
    * Fit the canvas CSS display size to the container while maintaining aspect ratio.
    * The canvas pixel buffer may be larger (e.g., 3x for quality) — CSS scales it down.
    */
-  private _fitCanvasToContainer(): void {
+  private _fitCanvasToContainer(retries: number = 0): void {
     if (!this._useBitmapFont || !this._bitmapFontRenderer) {
       // System font: no scaling needed, canvas pixels = display pixels
       this._canvas.style.width = '';
@@ -428,7 +434,13 @@ export class CanvasRenderer {
 
     const containerW = this._container.clientWidth;
     const containerH = this._container.clientHeight;
-    if (containerW === 0 || containerH === 0) return;
+    if ((containerW === 0 || containerH === 0) && retries < 3) {
+      // Container not laid out yet — retry after the browser completes layout.
+      // This handles the race where open() + setUseBitmapFont() runs before
+      // the container has non-zero dimensions (e.g., display:none → display:flex).
+      requestAnimationFrame(() => this._fitCanvasToContainer(retries + 1));
+      return;
+    }
 
     // Native (1x) dimensions of the terminal
     const nativeW = this._bitmapFontRenderer.charWidth * this._cols;

@@ -108,25 +108,51 @@ export class Terminal {
   get element(): HTMLElement | null { return this._container; }
   get rows(): number { return this._rows; }
   get cols(): number { return this._cols; }
-  get options(): TerminalOptions { return this._options; }
+  get options(): TerminalOptions {
+    // Return a Proxy so that property-level assignment (e.g. term.options.fontSize = 20)
+    // triggers the same update logic as the bulk setter, matching xterm.js behaviour.
+    const self = this;
+    return new Proxy(this._options, {
+      set(target, prop: string, value: unknown): boolean {
+        (target as any)[prop] = value;
+        switch (prop) {
+          case 'theme':
+            if (self._renderer && value) {
+              self._renderer.setTheme(value as TerminalTheme);
+              self.scheduleRender();
+            }
+            break;
+          case 'fontFamily':
+          case 'fontSize':
+            // Bitmap fonts are fixed per emulator — store value silently (no-op render)
+            break;
+          case 'bellVolume':
+            self._bellHandler.setOptions({ volume: value as number });
+            break;
+          case 'bellFrequency':
+            self._bellHandler.setOptions({ frequency: value as number });
+            break;
+          case 'bellDuration':
+            self._bellHandler.setOptions({ duration: value as number });
+            break;
+        }
+        return true;
+      }
+    });
+  }
   set options(opts: TerminalOptions) {
-    // Apply theme change
+    // Bulk setter for backward compatibility
     if (opts.theme && this._renderer) {
       this._renderer.setTheme(opts.theme);
       this._options.theme = opts.theme;
       this.scheduleRender();
     }
-    // Apply font change
-    if ((opts.fontFamily || opts.fontSize) && this._renderer) {
-      const family = opts.fontFamily ?? this._options.fontFamily ?? 'monospace';
-      const size = opts.fontSize ?? this._options.fontSize ?? 16;
-      this._renderer.setFont(family, size);
-      this._options.fontFamily = family;
-      this._options.fontSize = size;
-      this.scheduleRender();
+    if (opts.fontFamily !== undefined) {
+      this._options.fontFamily = opts.fontFamily;
     }
-    // useBitmapFont is always true — all emulators use bitmap fonts
-    // Apply bell settings
+    if (opts.fontSize !== undefined) {
+      this._options.fontSize = opts.fontSize;
+    }
     if (opts.bellVolume !== undefined) {
       this._options.bellVolume = opts.bellVolume;
       this._bellHandler.setOptions({ volume: opts.bellVolume });
@@ -186,6 +212,11 @@ export class Terminal {
 
     // Initial render
     this.scheduleRender();
+  }
+
+  /** Write data followed by CRLF (xterm.js compatible) */
+  writeln(data: string): void {
+    this.write(data + '\r\n');
   }
 
   /** Write data to the terminal (output from host) */
@@ -273,9 +304,11 @@ export class Terminal {
     this._container = null;
   }
 
-  /** No-op compatibility with xterm.js addons */
-  loadAddon(_addon: unknown): void {
-    // No-op — RetroTerm has built-in features
+  /** xterm.js-compatible addon loading — calls activate() if present */
+  loadAddon(addon: any): void {
+    if (addon && typeof addon.activate === 'function') {
+      addon.activate(this);
+    }
   }
 
   /** No-op compatibility with xterm.js WebGL */
