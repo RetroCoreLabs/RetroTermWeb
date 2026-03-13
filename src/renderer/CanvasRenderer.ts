@@ -64,7 +64,7 @@ export class CanvasRenderer {
     this._container = container;
     container.appendChild(this._canvas);
 
-    const ctx = this._canvas.getContext('2d');
+    const ctx = this._canvas.getContext('2d', { alpha: false });
     if (!ctx) throw new Error('Failed to get canvas 2D context');
     this._ctx = ctx;
 

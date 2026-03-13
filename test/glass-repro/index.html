@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Repro - Canvas Rendering Artifact Test</title>
+<link rel="stylesheet" href="../../dist/retroterm.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0e1c;
+    color: #ccc;
+    font-family: 'Fira Mono', monospace;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ===== TERMINAL WINDOW (glass morphism, same as template-glass) ===== */
+  .terminal-window {
+    position: fixed;
+    top: 60px;
+    left: 10px;
+    width: 860px;
+    height: 650px;
+    zoom: calc(1 / var(--ui-zoom, 1));   /* counter-zoom */
+    background: rgba(12, 16, 35, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* backdrop-filter on pseudo-element (current attempted fix) */
+  .terminal-window::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-radius: inherit;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .terminal-window > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ===== HEADER ===== */
+  .terminal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: rgba(0, 105, 92, 0.25);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(180, 230, 225, 0.95);
+  }
+
+  /* ===== CONTAINER (same as template-glass) ===== */
+  /* In template-glass, this starts as display:none until .active is added */
+  .terminal-container {
+    background: transparent;
+    display: none;
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+  .terminal-container.active {
+    display: flex;
+    flex: 1;
+  }
+
+  /* ===== CANVAS (same as template-glass) ===== */
+  .terminal-container canvas.retroterm-canvas {
+    display: block;
+    will-change: transform;
+  }
+
+  /* ===== CONTROLS ===== */
+  #controls {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(30, 40, 60, 0.9);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 12px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 300px;
+  }
+  #controls label { display: flex; align-items: center; gap: 8px; }
+  #controls input[type=range] { flex: 1; }
+  #controls button {
+    padding: 6px 12px;
+    background: rgba(0, 130, 143, 0.4);
+    border: 1px solid rgba(0, 200, 200, 0.3);
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  #controls button:hover { background: rgba(0, 130, 143, 0.6); }
+  .status { color: #4fc; font-size: 11px; }
+  .status.bad { color: #f66; }
+  .variant-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .variant-row button.active { background: rgba(0, 200, 143, 0.5); border-color: #4fc; }
+  #host-input {
+    background: rgba(0,0,0,0.4);
+    border: 1px solid rgba(0,200,200,0.3);
+    border-radius: 4px;
+    color: #b0ffb0;
+    font-family: 'Fira Mono', monospace;
+    font-size: 12px;
+    padding: 4px 8px;
+    flex: 1;
+  }
+</style>
+</head>
+<body>
+
+<!-- Glass terminal window (same structure as template-glass) -->
+<div class="terminal-window" id="terminal-window">
+  <div class="terminal-header">
+    <span>Glass Repro - TDV2200</span>
+    <span id="status" class="status">initializing...</span>
+  </div>
+  <div class="terminal-container" id="terminal-container"></div>
+</div>
+
+<!-- Test controls -->
+<div id="controls">
+  <strong style="color:#4fc">Canvas Rendering Test</strong>
+
+  <label>
+    Page zoom: <input type="range" id="zoom-slider" min="0.4" max="1.0" step="0.05" value="0.7">
+    <span id="zoom-val">0.70</span>
+  </label>
+
+  <hr style="border-color: rgba(255,255,255,0.1)">
+  <strong style="color:#aaa; font-size:11px">Host Output</strong>
+
+  <div style="display:flex; gap:6px">
+    <input type="text" id="host-input" placeholder="Type host output text...">
+    <button id="btn-send-text">Send</button>
+  </div>
+  <div class="variant-row">
+    <button id="btn-send-cr">Send CR</button>
+    <button id="btn-send-lines">Send 10 lines</button>
+    <button id="btn-send-banner">SINTRAN banner</button>
+  </div>
+
+  <hr style="border-color: rgba(255,255,255,0.1)">
+  <strong style="color:#aaa; font-size:11px">Stress Tests</strong>
+
+  <div class="variant-row">
+    <button id="btn-feed-slow">Feed slow</button>
+    <button id="btn-feed-fast">Feed fast</button>
+    <button id="btn-feed-scroll">Scroll storm</button>
+    <button id="btn-stop">Stop</button>
+  </div>
+
+  <div class="variant-row">
+    <button id="btn-resize">Trigger resize</button>
+    <button id="btn-clear">Clear screen</button>
+  </div>
+
+  <hr style="border-color: rgba(255,255,255,0.1)">
+  <strong style="color:#aaa; font-size:11px">CSS Toggles (test each)</strong>
+
+  <div class="variant-row">
+    <button id="tog-hidden-init" class="active">hidden init</button>
+    <button id="tog-zoom" class="active">zoom counter</button>
+    <button id="tog-backdrop" class="active">backdrop-filter</button>
+    <button id="tog-willchange" class="active">will-change</button>
+  </div>
+
+  <div id="log" style="font-size:10px; color:#888; max-height:100px; overflow:auto; margin-top:4px"></div>
+</div>
+
+<script src="../../dist/retroterm.js"></script>
+<script>
+(function() {
+  var RetroTerm = window.RetroTerm;
+  var container = document.getElementById('terminal-container');
+  var statusEl = document.getElementById('status');
+  var logEl = document.getElementById('log');
+  var termWindow = document.getElementById('terminal-window');
+
+  // ===== ZOOM SYSTEM (same as template-glass) =====
+  var currentZoom = 0.7;
+
+  function applyZoom(z) {
+    currentZoom = z;
+    document.documentElement.style.zoom = z;
+    document.documentElement.style.setProperty('--ui-zoom', z);
+  }
+
+  applyZoom(currentZoom);
+
+  // Responsive zoom on resize (same as template-glass)
+  var resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+      var nz = Math.max(0.5, Math.min(1, Math.min(
+        window.innerWidth / 1280,
+        window.innerHeight / 800
+      )));
+      applyZoom(nz);
+      document.getElementById('zoom-slider').value = nz;
+      document.getElementById('zoom-val').textContent = nz.toFixed(2);
+      resizeRetro();
+    }, 100);
+  });
+
+  // ===== CREATE TERMINAL =====
+  // Simulate template-glass timing:
+  // 1. Container starts as display:none (no .active class)
+  // 2. Terminal is created and opened into the hidden container
+  // 3. Container gets .active class (display:flex) AFTER terminal.open()
+  // This is the sequence in terminal-manager.ts createTerminal()
+
+  var term = new RetroTerm.Terminal({
+    rows: 24,
+    cols: 80,
+    theme: {
+      background: '#0a0e1c',
+      foreground: '#b0ffb0',
+      cursor: '#00ff88',
+    },
+    emulatorType: 'tdv2200'
+  });
+
+  var fitAddon = new RetroTerm.FitAddon();
+  term.loadAddon(fitAddon);
+
+  // Container is display:none at this point (no .active class)
+  term.open(container);
+
+  // NOW make the container visible (same as template-glass)
+  container.classList.add('active');
+  log('container made active AFTER term.open()');
+
+  function resizeRetro() {
+    term.resize(80, 24);
+    term.refresh(0, term.rows - 1);
+    log('resize triggered');
+  }
+
+  // Double-rAF initial resize (same as template-glass)
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      resizeRetro();
+      statusEl.textContent = 'ready';
+      statusEl.className = 'status';
+    });
+  });
+
+  // ResizeObserver (same as template-glass)
+  var observer = new ResizeObserver(function() { resizeRetro(); });
+  observer.observe(container);
+
+  // ===== SIMULATED HOST =====
+  // TDV2200 has no local echo — the host echoes characters back.
+  // onKey fires when a key is pressed; we simulate the host echoing it.
+  var inputBuffer = '';
+
+  term.onKey(function(ev) {
+    var str = ev.key;
+
+    for (var i = 0; i < str.length; i++) {
+      var ch = str.charCodeAt(i);
+
+      if (ch === 13 || ch === 10) {
+        // CR/LF — echo newline, process command, show new prompt
+        term.write('\r\n');
+        if (inputBuffer.length > 0) {
+          term.write('  (' + inputBuffer + ')\r\n');
+        }
+        inputBuffer = '';
+        term.write('@');
+      } else if (ch === 127 || ch === 8) {
+        // Backspace/DEL — erase last char
+        if (inputBuffer.length > 0) {
+          inputBuffer = inputBuffer.slice(0, -1);
+          term.write('\b \b');
+        }
+      } else if (ch >= 32) {
+        // Printable — echo it
+        inputBuffer += str[i];
+        term.write(str[i]);
+      }
+    }
+  });
+
+  // ===== HOST OUTPUT (from controls) =====
+  var lineNum = 0;
+
+  function hostWrite(text) {
+    term.write(text);
+  }
+
+  function sintranBanner() {
+    hostWrite('\r\n');
+    hostWrite('  ND-100/CX   SINTRAN III - VS  J0101\r\n');
+    hostWrite('  SYSTEM  846602  ND-100/CX\r\n');
+    hostWrite('  CENTRAL MEMORY:  4096 KB\r\n');
+    hostWrite('\r\n');
+    hostWrite('@');
+  }
+
+  function feedOneLine() {
+    lineNum++;
+    var text = 'LINE ' + String(lineNum).padStart(4, '0') +
+      '  ABCDEFGHIJKLMNOPQRSTUVWXYZ  0123456789  ' +
+      String.fromCharCode(65 + (lineNum % 26)).repeat(20);
+    hostWrite(text.substring(0, 78) + '\r\n');
+  }
+
+  // ===== CONTROLS =====
+
+  // Host input field
+  var hostInput = document.getElementById('host-input');
+  document.getElementById('btn-send-text').addEventListener('click', function() {
+    if (hostInput.value) {
+      hostWrite(hostInput.value);
+      log('sent: "' + hostInput.value + '"');
+      hostInput.value = '';
+    }
+    hostInput.focus();
+  });
+  hostInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      document.getElementById('btn-send-text').click();
+    }
+  });
+
+  document.getElementById('btn-send-cr').addEventListener('click', function() {
+    hostWrite('\r\n@');
+    log('sent CR + prompt');
+  });
+
+  document.getElementById('btn-send-lines').addEventListener('click', function() {
+    for (var i = 0; i < 10; i++) {
+      feedOneLine();
+    }
+    log('sent 10 lines');
+  });
+
+  document.getElementById('btn-send-banner').addEventListener('click', function() {
+    sintranBanner();
+    log('sent SINTRAN banner');
+  });
+
+  // Zoom slider
+  var zoomSlider = document.getElementById('zoom-slider');
+  var zoomVal = document.getElementById('zoom-val');
+  zoomSlider.addEventListener('input', function() {
+    var z = parseFloat(this.value);
+    zoomVal.textContent = z.toFixed(2);
+    applyZoom(z);
+    // Do NOT auto-resize — tests if zoom alone breaks rendering
+  });
+
+  // Feed buttons
+  var feedTimer = null;
+
+  function startFeed(intervalMs) {
+    stopFeed();
+    feedTimer = setInterval(feedOneLine, intervalMs);
+    log('feeding at ' + intervalMs + 'ms');
+  }
+
+  function stopFeed() {
+    if (feedTimer) {
+      clearInterval(feedTimer);
+      feedTimer = null;
+      log('feed stopped');
+    }
+  }
+
+  document.getElementById('btn-feed-slow').addEventListener('click', function() {
+    sintranBanner();
+    startFeed(200);
+  });
+  document.getElementById('btn-feed-fast').addEventListener('click', function() {
+    sintranBanner();
+    startFeed(16);
+  });
+  document.getElementById('btn-feed-scroll').addEventListener('click', function() {
+    sintranBanner();
+    stopFeed();
+    var count = 0;
+    feedTimer = setInterval(function() {
+      for (var i = 0; i < 5; i++) feedOneLine();
+      count += 5;
+      if (count > 500) stopFeed();
+    }, 16);
+    log('scroll storm (500 lines)');
+  });
+  document.getElementById('btn-stop').addEventListener('click', stopFeed);
+
+  document.getElementById('btn-resize').addEventListener('click', function() {
+    resizeRetro();
+  });
+  document.getElementById('btn-clear').addEventListener('click', function() {
+    hostWrite('\x1b[2J\x1b[H');
+    lineNum = 0;
+    inputBuffer = '';
+    log('screen cleared');
+  });
+
+  // ===== CSS TOGGLES =====
+  function toggle(btnId, applyFn) {
+    var btn = document.getElementById(btnId);
+    btn.addEventListener('click', function() {
+      var active = btn.classList.toggle('active');
+      applyFn(active);
+      log(btnId + ': ' + (active ? 'ON' : 'OFF'));
+    });
+  }
+
+  toggle('tog-hidden-init', function(on) {
+    log('hidden-init toggle requires page reload to take effect');
+    log(on ? 'Will open terminal into display:none container (like template-glass)'
+            : 'Will open terminal into visible container (like demo)');
+  });
+
+  toggle('tog-zoom', function(on) {
+    if (on) {
+      applyZoom(parseFloat(zoomSlider.value));
+      termWindow.style.zoom = '';
+    } else {
+      document.documentElement.style.zoom = '1';
+      document.documentElement.style.setProperty('--ui-zoom', '1');
+      termWindow.style.zoom = '1';
+    }
+  });
+
+  toggle('tog-backdrop', function(on) {
+    var existing = termWindow.querySelector('style[data-backdrop]');
+    if (on) {
+      if (existing) existing.remove();
+    } else {
+      var s = document.createElement('style');
+      s.dataset.backdrop = '1';
+      s.textContent = '.terminal-window::before { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }';
+      termWindow.appendChild(s);
+    }
+  });
+
+  toggle('tog-willchange', function(on) {
+    var canvas = container.querySelector('canvas');
+    if (canvas) canvas.style.willChange = on ? 'transform' : 'auto';
+  });
+
+  function log(msg) {
+    var d = new Date();
+    var ts = d.toTimeString().split(' ')[0];
+    logEl.innerHTML += '<div>' + ts + ' ' + msg + '</div>';
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Show initial prompt
+  setTimeout(function() {
+    sintranBanner();
+  }, 300);
+
+})();
+</script>
+</body>
+</html>
