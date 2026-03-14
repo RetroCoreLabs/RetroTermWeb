@@ -789,35 +789,30 @@
   }
 
   // ===== INIT SEQUENCE =====
+  // Real template-glass has TWO-PHASE init:
+  //   Phase 1: initializeTerminals() called from module-init.js, emu NOT ready
+  //            Creates console terminal, returns early
+  //   Phase 2: completePowerOn() → initializeTerminals() again, emu IS ready
+  //            DISPOSES all terminals, REMOVES containers, RECREATES everything
 
-  function initializeTerminals() {
-    log('initializeTerminals()');
+  var colorThemes = {
+    green:      { background: 'transparent', foreground: '#00FF00', cursor: '#00FF00' },
+    amber:      { background: 'transparent', foreground: '#FFBF00', cursor: '#FFBF00' },
+    white:      { background: 'transparent', foreground: '#F8F8F8', cursor: '#F8F8F8' },
+    blue:       { background: 'transparent', foreground: '#00BFFF', cursor: '#00BFFF' },
+    paperwhite: { background: '#f0f0f5',     foreground: '#222222', cursor: '#222222' }
+  };
 
-    var term1 = createTerminal(1, 'Console');
-    wireKeyboard(term1);
-
-    if (TWO_TABS) {
-      var term2 = createTerminal(2, 'Terminal 2');
-      wireKeyboard(term2);
-    }
-
-    switchTerminal(1);
-
+  function setupDropdowns() {
     // Hide font dropdown for RetroTerm (bitmap fonts only, same as template-glass terminal-manager.ts:688-690)
     var fontSelect = document.getElementById('font-family-select');
     if (fontSelect) fontSelect.style.display = 'none';
     document.getElementById('console-fontsize').textContent = 'bitmap';
 
-    // Wire up color theme select (same as template-glass terminal-manager.ts:135-160)
-    var colorThemes = {
-      green:      { background: 'transparent', foreground: '#00FF00', cursor: '#00FF00' },
-      amber:      { background: 'transparent', foreground: '#FFBF00', cursor: '#FFBF00' },
-      white:      { background: 'transparent', foreground: '#F8F8F8', cursor: '#F8F8F8' },
-      blue:       { background: 'transparent', foreground: '#00BFFF', cursor: '#00BFFF' },
-      paperwhite: { background: '#f0f0f5',     foreground: '#222222', cursor: '#222222' }
-    };
+    // Wire up color theme select
     var colorSelect = document.getElementById('color-theme-select');
-    if (colorSelect) {
+    if (colorSelect && !colorSelect._wired) {
+      colorSelect._wired = true;
       colorSelect.addEventListener('change', function() {
         var theme = colorThemes[colorSelect.value] || colorThemes.green;
         Object.keys(terminals).forEach(function(id) {
@@ -827,8 +822,9 @@
         log('color: ' + colorSelect.value);
       });
     }
+  }
 
-    // Initialize Virtual Keyboard (same as template-glass terminal-manager.ts:626-650)
+  function setupVirtualKeyboard() {
     var vkContainer = document.getElementById('virtual-keyboard-container');
     if (vkContainer && RetroTerm.VirtualKeyboard) {
       try {
@@ -836,7 +832,6 @@
         Object.keys(terminals).forEach(function(id) {
           vk.attachTerminal(terminals[parseInt(id)].term, 'Terminal ' + id);
         });
-        // Show VK toggle button
         var vkBtn = document.getElementById('term-vk-toggle');
         if (vkBtn) {
           vkBtn.style.display = '';
@@ -853,6 +848,61 @@
         log('VirtualKeyboard init failed: ' + e);
       }
     }
+  }
+
+  // Phase 1: create terminal early (emu not ready) - same as template-glass terminal-manager.ts:290-301
+  function initPhase1() {
+    log('PHASE 1: initializeTerminals() [emu not ready]');
+
+    tabsEl.innerHTML = '';
+    document.querySelectorAll('#terminal-window-body > .terminal-container').forEach(function(el) { el.remove(); });
+
+    var term1 = createTerminal(1, 'Console');
+    wireKeyboard(term1);
+
+    if (TWO_TABS) {
+      var term2 = createTerminal(2, 'Terminal 2');
+      wireKeyboard(term2);
+    }
+
+    switchTerminal(1);
+    setupDropdowns();
+
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() {
+        resizeAll();
+        statusEl.textContent = 'waiting for power...';
+      });
+    });
+  }
+
+  // Phase 2: dispose + recreate (emu ready) - same as template-glass terminal-manager.ts:304-360
+  function initPhase2() {
+    log('PHASE 2: initializeTerminals() [emu ready - dispose + recreate]');
+
+    // Remove all containers from DOM (same as template-glass line 305)
+    document.querySelectorAll('#terminal-window-body > .terminal-container').forEach(function(el) { el.remove(); });
+    tabsEl.innerHTML = '';
+
+    // Dispose all existing terminal instances (same as template-glass line 309-311)
+    Object.keys(terminals).forEach(function(id) {
+      log('  disposing terminal ' + id);
+      terminals[parseInt(id)].term.dispose();
+    });
+    terminals = {};
+
+    // Recreate terminals (same as template-glass line 317)
+    var term1 = createTerminal(1, 'Console');
+    wireKeyboard(term1);
+
+    if (TWO_TABS) {
+      var term2 = createTerminal(2, 'Terminal 2');
+      wireKeyboard(term2);
+    }
+
+    switchTerminal(1);
+    setupDropdowns();
+    setupVirtualKeyboard();
 
     requestAnimationFrame(function() {
       requestAnimationFrame(function() {
@@ -875,11 +925,24 @@
     }, SHOW_OVERLAY ? 800 : 300);
   }
 
+  // Wire Power button to trigger Phase 2 (same as toolbar.js completePowerOn)
+  document.getElementById('toolbar-power').addEventListener('click', function() {
+    initPhase2();
+  });
+
   // Real template-glass ALWAYS waits for document.fonts.ready (module-init.js:417)
   log('waiting for document.fonts.ready...');
   document.fonts.ready.then(function() {
     log('fonts ready');
-    initializeTerminals();
+
+    // Phase 1: early init (same as module-init.js initializeSystem → initializeTerminals)
+    initPhase1();
+
+    // Phase 2: auto-trigger after 2s (same timing as user clicking Power in real template-glass)
+    setTimeout(function() {
+      log('auto completePowerOn()');
+      initPhase2();
+    }, 2000);
   });
 
   // ===== HOST WRITE =====

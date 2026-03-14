@@ -43,6 +43,10 @@ export class CanvasRenderer {
   private _bitmapEmulatorType: string = '';
   /** Scale multiplier for bitmap rendering (integer multiple of native) */
   private _bitmapScale: number = 1;
+  /** Callback fired when CSS fit is applied after being empty (canvas ready to render) */
+  private _onFitReady: (() => void) | null = null;
+  /** Whether CSS fit has been successfully applied at least once */
+  private _cssFitApplied: boolean = false;
 
   constructor(
     container: HTMLElement,
@@ -97,6 +101,12 @@ export class CanvasRenderer {
   }
 
   get canvas(): HTMLCanvasElement { return this._canvas; }
+
+  /** Set callback for when CSS fit is applied after being empty or after resize.
+   * This handles the race where open() + setUseBitmapFont() runs before
+   * the container has non-zero dimensions, AND the case where resize()
+   * clears the canvas backing store and needs a fresh render after re-fit. */
+  set onFitReady(cb: (() => void) | null) { this._onFitReady = cb; }
   get charWidth(): number {
     if (this._useBitmapFont && this._bitmapFontRenderer) {
       return this._bitmapFontRenderer.charWidth;
@@ -142,19 +152,32 @@ export class CanvasRenderer {
     searchManager?: ScrollbackSearch,
     scrollOffset: number = 0,
   ): void {
-    // Ensure CSS fit is applied before rendering — guards against the race
-    // where the first render fires before _fitCanvasToContainer() succeeded.
-    if (this._useBitmapFont && this._canvas.style.width === '') {
+    // Guard: don't render until CSS fit is applied — prevents garbled frames
+    // when the container has zero dimensions (just appended to DOM, no layout yet)
+    // or after resize() cleared the canvas backing store.
+    if (this._useBitmapFont && !this._cssFitApplied) {
       this._fitCanvasToContainer();
+      if (!this._cssFitApplied) {
+        return;
+      }
     }
 
     const ctx = this._ctx;
     const cw = this.renderCellWidth;
     const ch = this.renderCellHeight;
+    const w = this._canvas.width;
+    const h = this._canvas.height;
+
+    // Force the browser compositor to create a fresh texture for this canvas.
+    // Without this, CSS zoom + backdrop-filter environments cause the compositor
+    // to display stale canvas content even though the backing store is correct.
+    // Reassigning canvas.width clears the backing store and resets context state,
+    // but we're about to clear and repaint everything anyway.
+    this._canvas.width = w;
 
     // Clear with background
     ctx.fillStyle = this._theme.background ?? '#000000';
-    ctx.fillRect(0, 0, this._canvas.width, this._canvas.height);
+    ctx.fillRect(0, 0, w, h);
 
     // Render each cell
     for (let row = 0; row < this._rows; row++) {
@@ -226,12 +249,24 @@ export class CanvasRenderer {
       }
     }
 
-    // Hide cursor when scrolled back
-    if (scrollOffset === 0) {
+    // Hide cursor when scrolled back or buffer is blank (no data received yet)
+    if (scrollOffset === 0 && this._bufferHasContent(buffer)) {
       this.renderCursorWithCorrectDimensions(ctx, cursor);
     }
 
     this._renderState.clearDirty();
+  }
+
+  /** Check if the buffer has any non-empty content (at least one non-space character) */
+  private _bufferHasContent(buffer: TerminalBuffer): boolean {
+    // Quick check: scan first row for any non-space/null codepoint
+    for (let col = 0; col < this._cols; col++) {
+      const cp = buffer.getCell(0, col).codepoint;
+      if (cp !== 0 && cp !== 32) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Render only dirty rows */
@@ -310,8 +345,8 @@ export class CanvasRenderer {
       }
     }
 
-    // Hide cursor when scrolled back
-    if (scrollOffset === 0) {
+    // Hide cursor when scrolled back or buffer is blank
+    if (scrollOffset === 0 && this._bufferHasContent(buffer)) {
       this.renderCursorWithCorrectDimensions(ctx, cursor);
     }
     this._renderState.clearDirty();
@@ -358,13 +393,12 @@ export class CanvasRenderer {
     this._canvas.className = 'retroterm-canvas retroterm-bitmap';
     this._canvas.style.imageRendering = 'auto';
 
-    // Render at 3x native resolution — small enough to be cheap,
-    // large enough that CSS bilinear scaling looks clean in both directions
+    // Render at 3x native resolution for crisp text at any display size.
+    // CSS scales it down to fit the container.
     this._bitmapScale = 3;
+    this._cssFitApplied = false;
     this._canvas.width = this._bitmapFontRenderer!.charWidth * this._cols * this._bitmapScale;
     this._canvas.height = this._bitmapFontRenderer!.charHeight * this._rows * this._bitmapScale;
-
-    // Set CSS display size to fit within the container
     this._fitCanvasToContainer();
 
     this._renderState.markAllDirty();
@@ -422,11 +456,10 @@ export class CanvasRenderer {
 
   /**
    * Fit the canvas CSS display size to the container while maintaining aspect ratio.
-   * The canvas pixel buffer may be larger (e.g., 3x for quality) — CSS scales it down.
+   * The canvas pixel buffer is larger (3x for quality) — CSS scales it down.
    */
   private _fitCanvasToContainer(retries: number = 0): void {
     if (!this._useBitmapFont || !this._bitmapFontRenderer) {
-      // System font: no scaling needed, canvas pixels = display pixels
       this._canvas.style.width = '';
       this._canvas.style.height = '';
       return;
@@ -434,11 +467,10 @@ export class CanvasRenderer {
 
     const containerW = this._container.clientWidth;
     const containerH = this._container.clientHeight;
-    if ((containerW === 0 || containerH === 0) && retries < 3) {
-      // Container not laid out yet — retry after the browser completes layout.
-      // This handles the race where open() + setUseBitmapFont() runs before
-      // the container has non-zero dimensions (e.g., display:none → display:flex).
-      requestAnimationFrame(() => this._fitCanvasToContainer(retries + 1));
+    if (containerW === 0 || containerH === 0) {
+      if (retries < 5) {
+        requestAnimationFrame(() => this._fitCanvasToContainer(retries + 1));
+      }
       return;
     }
 
@@ -451,12 +483,19 @@ export class CanvasRenderer {
     const scaleH = containerH / nativeH;
     const fitScale = Math.min(scaleW, scaleH);
 
-    // Use integer pixel sizes to avoid sub-pixel blurriness
+    // CSS display size (integer pixels)
     const displayW = Math.floor(nativeW * fitScale);
     const displayH = Math.floor(nativeH * fitScale);
 
     this._canvas.style.width = displayW + 'px';
     this._canvas.style.height = displayH + 'px';
+
+    if (!this._cssFitApplied) {
+      this._cssFitApplied = true;
+      if (this._onFitReady) {
+        this._onFitReady();
+      }
+    }
   }
 
   /** Resize the renderer */
@@ -464,9 +503,16 @@ export class CanvasRenderer {
     this._cols = cols;
     this._rows = rows;
     this._renderState.resize(cols, rows);
-    this._canvas.width = this.renderCellWidth * cols;
-    this._canvas.height = this.renderCellHeight * rows;
-    this._fitCanvasToContainer();
+    if (this._useBitmapFont && this._bitmapFontRenderer) {
+      this._cssFitApplied = false;
+      this._canvas.width = this._bitmapFontRenderer.charWidth * cols * this._bitmapScale;
+      this._canvas.height = this._bitmapFontRenderer.charHeight * rows * this._bitmapScale;
+      this._fitCanvasToContainer();
+    } else {
+      // System font: canvas pixels = character grid pixels
+      this._canvas.width = this.renderCellWidth * cols;
+      this._canvas.height = this.renderCellHeight * rows;
+    }
   }
 
   /** Clean up resources */

@@ -198,6 +198,10 @@ export class Terminal {
     // All emulators use bitmap fonts
     this._renderer.setUseBitmapFont(true, this._emulatorType);
 
+    // If CSS fit couldn't be applied yet (container has zero dimensions),
+    // the first render will be skipped. Re-trigger when fit is ready.
+    this._renderer.onFitReady = () => this.scheduleRender();
+
     // Set up keyboard handler
     this._renderer.canvas.addEventListener('keydown', this.handleKeyDown);
     this._renderer.canvas.addEventListener('keypress', this.handleKeyPress);
