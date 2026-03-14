@@ -185,6 +185,8 @@ const NAV_ARROW_GLYPHS: Record<string, NavArrowGlyph> = {
 };
 
 export class VirtualKeyboard {
+  private static _nextId = 0;
+  private _instanceId: number;
   private _container: HTMLElement;
   private _svgRoot: SVGSVGElement | null = null;
   private _terminals: AttachedTerminal[] = [];
@@ -208,6 +210,7 @@ export class VirtualKeyboard {
   private _toggleStates: Map<string, boolean> = new Map();
 
   constructor(container: HTMLElement) {
+    this._instanceId = VirtualKeyboard._nextId++;
     this._container = container;
     this.render();
   }
@@ -354,9 +357,9 @@ export class VirtualKeyboard {
     // Gradient definitions for 3D concave key effect
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     const gradients: [string, string, string][] = [
-      ['key-grad-white', '#e8e8e8', '#b0b0b0'],
-      ['key-grad-orange', '#d88830', '#a06020'],
-      ['key-grad-brown', '#9b7918', '#6b5010'],
+      [`key-grad-white-${this._instanceId}`, '#e8e8e8', '#b0b0b0'],
+      [`key-grad-orange-${this._instanceId}`, '#d88830', '#a06020'],
+      [`key-grad-brown-${this._instanceId}`, '#9b7918', '#6b5010'],
     ];
     for (const [id, inner, outer] of gradients) {
       const grad = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
@@ -698,10 +701,10 @@ export class VirtualKeyboard {
 
   private getKeyGradient(color: TDVKeyColor): string {
     switch (color) {
-      case TDVKeyColor.Orange: return 'url(#key-grad-orange)';
-      case TDVKeyColor.Brown: return 'url(#key-grad-brown)';
+      case TDVKeyColor.Orange: return `url(#key-grad-orange-${this._instanceId})`;
+      case TDVKeyColor.Brown: return `url(#key-grad-brown-${this._instanceId})`;
       case TDVKeyColor.White:
-      default: return 'url(#key-grad-white)';
+      default: return `url(#key-grad-white-${this._instanceId})`;
     }
   }
 
