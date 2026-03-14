@@ -44,9 +44,10 @@ export class SystemFontRenderer {
     const x = col * this._charWidth;
     const y = row * this._charHeight;
 
-    // Resolve colors
+    // Resolve colors — 'transparent' is not a usable render color
     let fg = this.resolveColor(cell.foreground, theme.foreground ?? '#ffffff', true, theme);
     let bg = this.resolveColor(cell.background, theme.background ?? '#000000', false, theme);
+    if (bg === 'transparent') bg = '#000000';
 
     // Handle reverse video
     if (hasAttribute(cell.attributes, CharacterAttributes.Reverse) || isSelected) {

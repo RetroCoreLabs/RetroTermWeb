@@ -193,9 +193,11 @@ export class CanvasRenderer {
           const x = col * cw;
           const y = row * ch;
 
-          // Resolve fg and bg colors
+          // Resolve fg and bg colors — 'transparent' is not a usable render
+          // color (used for CSS glass compositing), so fall back to black
           let fg = this._theme.foreground ?? '#ffffff';
           let bg = this._theme.background ?? '#000000';
+          if (bg === 'transparent') bg = '#000000';
           if (!cell.foreground.isDefault) {
             const rgb = cell.foreground.toRgb();
             fg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
@@ -306,6 +308,7 @@ export class CanvasRenderer {
             // Resolve fg and bg colors
             let fg = this._theme.foreground ?? '#ffffff';
             let bg = this._theme.background ?? '#000000';
+            if (bg === 'transparent') bg = '#000000';
             if (!cell.foreground.isDefault) {
               const rgb = cell.foreground.toRgb();
               fg = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
