@@ -210,6 +210,7 @@ export class Terminal {
     this._renderer.canvas.addEventListener('mousedown', this.handleMouseDown);
     this._renderer.canvas.addEventListener('mousemove', this.handleMouseMove);
     this._renderer.canvas.addEventListener('mouseup', this.handleMouseUp);
+    this._renderer.canvas.addEventListener('contextmenu', this.handleContextMenu);
 
     // Set up wheel handler for scrollback
     this._renderer.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
@@ -296,6 +297,7 @@ export class Terminal {
       this._renderer.canvas.removeEventListener('mousedown', this.handleMouseDown);
       this._renderer.canvas.removeEventListener('mousemove', this.handleMouseMove);
       this._renderer.canvas.removeEventListener('mouseup', this.handleMouseUp);
+      this._renderer.canvas.removeEventListener('contextmenu', this.handleContextMenu);
       this._renderer.canvas.removeEventListener('wheel', this.handleWheel);
       this._renderer.dispose();
       this._renderer = null;
@@ -521,8 +523,8 @@ export class Terminal {
     const scaleY = canvas.height / rect.height;
     const x = (ev.clientX - rect.left) * scaleX;
     const y = (ev.clientY - rect.top) * scaleY;
-    const col = Math.min(Math.max(0, Math.floor(x / this._renderer.charWidth)), this._cols - 1);
-    const row = Math.min(Math.max(0, Math.floor(y / this._renderer.charHeight)), this._rows - 1);
+    const col = Math.min(Math.max(0, Math.floor(x / this._renderer.renderCellWidth)), this._cols - 1);
+    const row = Math.min(Math.max(0, Math.floor(y / this._renderer.renderCellHeight)), this._rows - 1);
     return { row, col };
   }
 
@@ -540,6 +542,25 @@ export class Terminal {
 
   private handleMouseUp = (_ev: MouseEvent): void => {
     this._selectionManager.endSelection();
+  };
+
+  /** Right-click: copy selection if any, otherwise paste from clipboard */
+  private handleContextMenu = (ev: MouseEvent): void => {
+    ev.preventDefault();
+    if (this._selectionManager.hasSelection) {
+      const text = this.getSelectedText();
+      if (text) {
+        this._clipboardManager.copyText(text);
+      }
+      this._selectionManager.clearSelection();
+      this.scheduleRender();
+    } else {
+      this._clipboardManager.readText().then((text) => {
+        if (text) {
+          this._onKey.fire({ key: text, domEvent: ev as unknown as KeyboardEvent });
+        }
+      });
+    }
   };
 
   // --- Wheel handler for scrollback ---
