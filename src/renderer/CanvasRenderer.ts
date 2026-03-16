@@ -299,10 +299,15 @@ export class CanvasRenderer {
 
     for (let row = 0; row < this._rows; row++) {
       if (this._renderState.isRowDirty(row)) {
-        // Clear row background
+        // Clear row background — transparent requires clearRect (same as render())
         const y = row * ch;
-        ctx.fillStyle = this._theme.background ?? '#000000';
-        ctx.fillRect(0, y, this._canvas.width, ch);
+        const rowBg = this._theme.background;
+        if (!rowBg || rowBg === 'transparent') {
+          ctx.clearRect(0, y, this._canvas.width, ch);
+        } else {
+          ctx.fillStyle = rowBg;
+          ctx.fillRect(0, y, this._canvas.width, ch);
+        }
 
         for (let col = 0; col < this._cols; col++) {
           const cell = scrollOffset > 0
@@ -352,6 +357,19 @@ export class CanvasRenderer {
             }
           } else {
             this._systemFontRenderer.renderCell(ctx, cell, col, row, this._theme, isSelected);
+          }
+
+          // Render search highlights (overlay) — same as render()
+          if (searchManager) {
+            if (searchManager.isCellCurrentMatch(row, col)) {
+              const sx = col * cw;
+              ctx.fillStyle = 'rgba(255, 165, 0, 0.4)';
+              ctx.fillRect(sx, y, cw, ch);
+            } else if (searchManager.isCellHighlighted(row, col)) {
+              const sx = col * cw;
+              ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+              ctx.fillRect(sx, y, cw, ch);
+            }
           }
         }
       }
@@ -434,13 +452,17 @@ export class CanvasRenderer {
         ctx.globalAlpha = 1.0;
         break;
       case CursorStyle.Underline:
-      case CursorStyle.BlinkingUnderline:
-        ctx.fillRect(x, y + ch - 2, cw, 2);
+      case CursorStyle.BlinkingUnderline: {
+        const ulThick = Math.max(2, this._bitmapScale);
+        ctx.fillRect(x, y + ch - ulThick, cw, ulThick);
         break;
+      }
       case CursorStyle.Bar:
-      case CursorStyle.BlinkingBar:
-        ctx.fillRect(x, y, 2, ch);
+      case CursorStyle.BlinkingBar: {
+        const barThick = Math.max(2, this._bitmapScale);
+        ctx.fillRect(x, y, barThick, ch);
         break;
+      }
     }
   }
 

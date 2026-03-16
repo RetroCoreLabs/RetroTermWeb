@@ -192,9 +192,12 @@ export class BitmapFontRenderer {
           const pw = pxNext - px;
           ctx.fillRect(px, py, pw, ph);
 
-          // Bold: draw a second time 1px to the right (thickening)
+          // Bold: draw a second time offset to the right (thickening).
+          // Scale the offset with pixel size so bold remains proportional
+          // at higher _bitmapScale values.
           if (hasAttribute(attributes, ATTR_BOLD)) {
-            ctx.fillRect(px + 1, py, pw, ph);
+            const boldOffset = Math.max(1, Math.round(pw / fontWidth));
+            ctx.fillRect(px + boldOffset, py, pw, ph);
           }
         }
       }
