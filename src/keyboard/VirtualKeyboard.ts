@@ -518,13 +518,20 @@ export class VirtualKeyboard {
     // Click handler
     g.addEventListener('mousedown', (ev) => {
       ev.preventDefault();
-      this.handleKeyClick(layout.gridPos, keyDef);
+      this.handleKeyClick(layout.gridPos, keyDef, ev as MouseEvent);
       rect.setAttribute('fill', this.getPressedColor(keyDef.color));
     });
     g.addEventListener('mouseup', () => {
+      // Keep modifier keys visually pressed when active (sticky toggle)
+      if ((keyDef.flags & TDVKeyFlags.IsModifier) && this.isModifierActive(keyDef.name)) {
+        return;
+      }
       rect.setAttribute('fill', this.getKeyGradient(keyDef.color));
     });
     g.addEventListener('mouseleave', () => {
+      if ((keyDef.flags & TDVKeyFlags.IsModifier) && this.isModifierActive(keyDef.name)) {
+        return;
+      }
       rect.setAttribute('fill', this.getKeyGradient(keyDef.color));
     });
 
@@ -617,16 +624,41 @@ export class VirtualKeyboard {
     g.appendChild(path);
   }
 
-  private handleKeyClick(gridPos: string, keyDef: TDVKeyDefinition): void {
+  /** Check if a modifier key is currently active */
+  private isModifierActive(name: string): boolean {
+    if (name === 'LSHIFT' || name === 'RSHIFT') return this._shiftActive;
+    if (name === 'CTRL') return this._ctrlActive;
+    return false;
+  }
+
+  /** Update visual state of all modifier keys to match internal state */
+  private updateModifierVisuals(): void {
+    this.updateModifierKeyVisual('B99', this._shiftActive);
+    this.updateModifierKeyVisual('B11', this._shiftActive);
+    this.updateModifierKeyVisual('D0', this._ctrlActive);
+  }
+
+  private updateModifierKeyVisual(gridPos: string, active: boolean): void {
+    const g = this._keyElements.get(gridPos);
+    if (!g) return;
+    const rect = g.querySelector('rect');
+    const keyDef = TDV2200KeyRegistry.getKey(gridPos);
+    if (rect && keyDef) {
+      rect.setAttribute('fill', active ? this.getPressedColor(keyDef.color) : this.getKeyGradient(keyDef.color));
+    }
+  }
+
+  private handleKeyClick(gridPos: string, keyDef: TDVKeyDefinition, ev?: MouseEvent): void {
     if (!this._activeTerminal) return;
 
-    // Handle modifier keys
+    // Handle modifier keys (VK click toggles)
     if (keyDef.flags & TDVKeyFlags.IsModifier) {
       if (keyDef.name === 'LSHIFT' || keyDef.name === 'RSHIFT') {
         this._shiftActive = !this._shiftActive;
       } else if (keyDef.name === 'CTRL') {
         this._ctrlActive = !this._ctrlActive;
       }
+      this.updateModifierVisuals();
       return;
     }
 
@@ -638,10 +670,31 @@ export class VirtualKeyboard {
       return;
     }
 
-    // Determine effective shift state (CAPS toggle inverts for letter keys)
+    // Physical keyboard modifiers override VK sticky state
+    if (ev) {
+      if (ev.shiftKey) this._shiftActive = true;
+      if (ev.ctrlKey) this._ctrlActive = true;
+    }
+
+    // Determine effective shift state.
+    // TDV labels store uppercase as primary for letter keys (CAPS-as-default),
+    // so we must distinguish letter keys from other keys.
     const capsActive = this._toggleStates.get('E0') ?? false;
-    let effectiveShift = this._shiftActive;
-    if (capsActive) effectiveShift = !effectiveShift;
+    const label = TDV2200KeyRegistry.getLabel(gridPos, this._language);
+
+    // Detect letter key: primary is a single uppercase letter, shifted is its lowercase
+    const isLetterKey = label !== null
+      && label.primary !== null && label.shifted !== null
+      && label.primary.length === 1 && label.shifted.length === 1
+      && label.primary.toUpperCase() === label.primary
+      && label.shifted === label.primary.toLowerCase();
+
+    let effectiveShift: boolean;
+    if (isLetterKey) {
+      effectiveShift = capsActive ? !this._shiftActive : this._shiftActive;
+    } else {
+      effectiveShift = this._shiftActive;
+    }
 
     // Get sequence from registry
     const seq = TDV2200KeyRegistry.getSequence(
@@ -651,26 +704,24 @@ export class VirtualKeyboard {
 
     if (seq !== null) {
       this.sendSequence(seq);
-    } else {
-      // No escape sequence — fall back to ASCII based on label and shift state
-      const label = TDV2200KeyRegistry.getLabel(gridPos, this._language);
-      if (label) {
-        let ch: string | null = null;
-        if (effectiveShift && label.shifted) {
-          ch = label.shifted;
-        } else if (label.primary && label.primary.length === 1) {
-          ch = label.primary;
-        }
-        if (ch !== null && ch.length === 1) {
-          // Handle Ctrl+key: generate control code
-          if (this._ctrlActive) {
-            const code = ch.toUpperCase().charCodeAt(0);
-            if (code >= 0x40 && code <= 0x5F) {
-              this.sendSequence(String.fromCharCode(code - 0x40));
-            }
-          } else {
-            this.sendSequence(ch);
+    } else if (label) {
+      // No escape sequence -- fall back to ASCII based on label and shift state
+      let ch: string | null = null;
+      if (isLetterKey) {
+        ch = effectiveShift ? label.primary : label.shifted;
+      } else if (effectiveShift && label.shifted) {
+        ch = label.shifted;
+      } else if (label.primary && label.primary.length === 1) {
+        ch = label.primary;
+      }
+      if (ch !== null && ch.length === 1) {
+        if (this._ctrlActive) {
+          const code = ch.toUpperCase().charCodeAt(0);
+          if (code >= 0x40 && code <= 0x5F) {
+            this.sendSequence(String.fromCharCode(code - 0x40));
           }
+        } else {
+          this.sendSequence(ch);
         }
       }
     }
@@ -678,6 +729,7 @@ export class VirtualKeyboard {
     // Reset modifiers after key press (sticky behavior)
     this._shiftActive = false;
     this._ctrlActive = false;
+    this.updateModifierVisuals();
   }
 
   /** Send a key sequence to the active terminal */
@@ -778,6 +830,38 @@ export class VirtualKeyboard {
 
     this._container.style.position = 'relative';
     this._container.appendChild(select);
+  }
+
+  /** Visually press a key by VK code (for physical keyboard sync) */
+  highlightKey(vkCode: number): void {
+    const gridPos = TDV2200KeyRegistry.getGridForVK(vkCode);
+    if (!gridPos) return;
+    this.highlightGridKey(gridPos);
+  }
+
+  /** Visually release a key by VK code */
+  unhighlightKey(vkCode: number): void {
+    const gridPos = TDV2200KeyRegistry.getGridForVK(vkCode);
+    if (!gridPos) return;
+    this.unhighlightGridKey(gridPos);
+  }
+
+  /** Visually press a key by grid position directly */
+  highlightGridKey(gridPos: string): void {
+    const g = this._keyElements.get(gridPos);
+    if (!g) return;
+    const rect = g.querySelector('rect');
+    const keyDef = TDV2200KeyRegistry.getKey(gridPos);
+    if (rect && keyDef) rect.setAttribute('fill', this.getPressedColor(keyDef.color));
+  }
+
+  /** Visually release a key by grid position directly */
+  unhighlightGridKey(gridPos: string): void {
+    const g = this._keyElements.get(gridPos);
+    if (!g) return;
+    const rect = g.querySelector('rect');
+    const keyDef = TDV2200KeyRegistry.getKey(gridPos);
+    if (rect && keyDef) rect.setAttribute('fill', this.getKeyGradient(keyDef.color));
   }
 
   /** Clean up DOM elements */

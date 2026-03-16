@@ -356,6 +356,12 @@ export class Terminal {
     return this._renderer;
   }
 
+  /** Set a callback fired after every canvas render completes.
+   *  Use this to force browser repaints in hostile CSS environments. */
+  set onRender(cb: (() => void) | null) {
+    if (this._renderer) this._renderer.onRender = cb;
+  }
+
   /** Get selected text, if any */
   getSelectedText(): string {
     return this._selectionManager.getSelectedText(this._emulator.buffer, this._cols, this._scrollOffset);
@@ -686,10 +692,18 @@ export class FitAddon {
     return { cols, rows };
   }
 
-  /** Resize the terminal to fit its container */
+  /** Resize the terminal to fit its container.
+   *  When bitmap fonts are active the grid stays fixed (e.g. 80×24) —
+   *  only the CSS display size changes to fill the container. */
   fit(): void {
+    if (!this._terminal) return;
+    const renderer = this._terminal.getRenderer();
+    if (renderer && renderer.isBitmapFontActive) {
+      // Bitmap mode: don't change cols/rows, just re-fit CSS scaling
+      return;
+    }
     const dims = this.proposeDimensions();
-    if (dims && this._terminal) {
+    if (dims) {
       this._terminal.resize(dims.cols, dims.rows);
     }
   }
