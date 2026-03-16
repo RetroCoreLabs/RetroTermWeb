@@ -4,8 +4,10 @@
  * Supports both system fonts (VT100) and bitmap fonts (TDV).
  *
  * Rendering strategy:
- * - Canvas is rendered at display resolution (container size * devicePixelRatio)
- * - Bitmap glyphs are scaled up to fill display cells (no CSS upscaling needed)
+ * - Bitmap mode: canvas backing store = CSS display size × devicePixelRatio,
+ *   giving 1:1 mapping to device pixels.  No CSS resampling is needed.
+ * - Bitmap glyphs are scaled up to fill display cells via fillRect
+ * - _bitmapScale is recalculated on every container resize
  * - Dirty tracking only re-renders changed cells
  * - RequestAnimationFrame coalesces multiple writes
  */
@@ -47,6 +49,9 @@ export class CanvasRenderer {
   private _onFitReady: (() => void) | null = null;
   /** Whether CSS fit has been successfully applied at least once */
   private _cssFitApplied: boolean = false;
+  /** Callback fired after every render() completes — used by the host to
+   *  force browser repaints or synchronize with external UI. */
+  private _onRender: (() => void) | null = null;
 
   constructor(
     container: HTMLElement,
@@ -68,7 +73,7 @@ export class CanvasRenderer {
     this._container = container;
     container.appendChild(this._canvas);
 
-    const ctx = this._canvas.getContext('2d', { alpha: false });
+    const ctx = this._canvas.getContext('2d');
     if (!ctx) throw new Error('Failed to get canvas 2D context');
     this._ctx = ctx;
 
@@ -107,6 +112,8 @@ export class CanvasRenderer {
    * the container has non-zero dimensions, AND the case where resize()
    * clears the canvas backing store and needs a fresh render after re-fit. */
   set onFitReady(cb: (() => void) | null) { this._onFitReady = cb; }
+  /** Set callback fired after every render() completes */
+  set onRender(cb: (() => void) | null) { this._onRender = cb; }
   get charWidth(): number {
     if (this._useBitmapFont && this._bitmapFontRenderer) {
       return this._bitmapFontRenderer.charWidth;
@@ -165,19 +172,18 @@ export class CanvasRenderer {
     const ctx = this._ctx;
     const cw = this.renderCellWidth;
     const ch = this.renderCellHeight;
-    const w = this._canvas.width;
-    const h = this._canvas.height;
 
-    // Force the browser compositor to create a fresh texture for this canvas.
-    // Without this, CSS zoom + backdrop-filter environments cause the compositor
-    // to display stale canvas content even though the backing store is correct.
-    // Reassigning canvas.width clears the backing store and resets context state,
-    // but we're about to clear and repaint everything anyway.
-    this._canvas.width = w;
-
-    // Clear with background
-    ctx.fillStyle = this._theme.background ?? '#000000';
-    ctx.fillRect(0, 0, w, h);
+    // Clear canvas — 'transparent' background requires clearRect (which erases
+    // pixel data) instead of fillRect (which draws transparent pixels on top of
+    // existing content, leaving old characters visible).  Opaque backgrounds
+    // use fillRect as normal.
+    const bg = this._theme.background;
+    if (!bg || bg === 'transparent') {
+      ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+    } else {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, this._canvas.width, this._canvas.height);
+    }
 
     // Render each cell
     for (let row = 0; row < this._rows; row++) {
@@ -257,6 +263,9 @@ export class CanvasRenderer {
     }
 
     this._renderState.clearDirty();
+
+    // Notify host that a render completed
+    if (this._onRender) this._onRender();
   }
 
   /** Check if the buffer has any non-empty content (at least one non-space character) */
@@ -396,12 +405,11 @@ export class CanvasRenderer {
     this._canvas.className = 'retroterm-canvas retroterm-bitmap';
     this._canvas.style.imageRendering = 'auto';
 
-    // Render at 3x native resolution for crisp text at any display size.
-    // CSS scales it down to fit the container.
-    this._bitmapScale = 3;
+    // Canvas backing store will be sized to match actual display pixels
+    // (container fit × devicePixelRatio) so no CSS resampling is needed.
+    // _fitCanvasToContainer sets _bitmapScale dynamically.
+    this._bitmapScale = 1;
     this._cssFitApplied = false;
-    this._canvas.width = this._bitmapFontRenderer!.charWidth * this._cols * this._bitmapScale;
-    this._canvas.height = this._bitmapFontRenderer!.charHeight * this._rows * this._bitmapScale;
     this._fitCanvasToContainer();
 
     this._renderState.markAllDirty();
@@ -458,8 +466,10 @@ export class CanvasRenderer {
   }
 
   /**
-   * Fit the canvas CSS display size to the container while maintaining aspect ratio.
-   * The canvas pixel buffer is larger (3x for quality) — CSS scales it down.
+   * Size the canvas to match the actual display pixels so no CSS resampling
+   * is needed.  The canvas backing store is set to displaySize × devicePixelRatio
+   * and CSS width/height is set to displaySize.  _bitmapScale is updated so
+   * the render loop draws at the correct resolution.
    */
   private _fitCanvasToContainer(retries: number = 0): void {
     if (!this._useBitmapFont || !this._bitmapFontRenderer) {
@@ -490,10 +500,28 @@ export class CanvasRenderer {
     const displayW = Math.floor(nativeW * fitScale);
     const displayH = Math.floor(nativeH * fitScale);
 
+    // Snap canvas backing store to an integer multiple of native resolution.
+    // This ensures every font pixel maps to exactly N×N canvas pixels,
+    // eliminating uneven column widths that cause diffused/shimmy text.
+    const dpr = window.devicePixelRatio || 1;
+    const rawScale = (displayW * dpr) / nativeW;
+    const intScale = Math.max(1, Math.round(rawScale));
+    const backingW = nativeW * intScale;
+    const backingH = nativeH * intScale;
+
+    // Only resize canvas if dimensions actually changed (avoids clearing content)
+    const needsResize = this._canvas.width !== backingW || this._canvas.height !== backingH;
+    if (needsResize) {
+      this._canvas.width = backingW;
+      this._canvas.height = backingH;
+      // Update scale: how many canvas pixels per native font pixel
+      this._bitmapScale = intScale;
+    }
+
     this._canvas.style.width = displayW + 'px';
     this._canvas.style.height = displayH + 'px';
 
-    if (!this._cssFitApplied) {
+    if (!this._cssFitApplied || needsResize) {
       this._cssFitApplied = true;
       if (this._onFitReady) {
         this._onFitReady();
@@ -508,8 +536,6 @@ export class CanvasRenderer {
     this._renderState.resize(cols, rows);
     if (this._useBitmapFont && this._bitmapFontRenderer) {
       this._cssFitApplied = false;
-      this._canvas.width = this._bitmapFontRenderer.charWidth * cols * this._bitmapScale;
-      this._canvas.height = this._bitmapFontRenderer.charHeight * rows * this._bitmapScale;
       this._fitCanvasToContainer();
     } else {
       // System font: canvas pixels = character grid pixels
