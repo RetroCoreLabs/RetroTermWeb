@@ -121,6 +121,12 @@ footer {
   color: #53a8b6;
 }
 
+#render-stats {
+  color: #a0a0a0;
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 11px;
+}
+
 #key-display {
   color: #a0a0a0;
   font-family: 'Fira Code', 'Cascadia Code', monospace;

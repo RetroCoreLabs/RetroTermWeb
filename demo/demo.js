@@ -41,6 +41,28 @@
   window.demoTerminal = term;
   statusEl.textContent = 'Terminal: ' + term.cols + 'x' + term.rows + ' — VT100';
 
+  // Live render stats
+  var renderStatsEl = document.getElementById('render-stats');
+  function updateRenderStats() {
+    var r = term.getRenderer();
+    if (!r) { renderStatsEl.textContent = ''; return; }
+    var canvas = r.canvas;
+    var rect = canvas.getBoundingClientRect();
+    var nativeW = r.charWidth * term.cols;
+    var nativeH = r.charHeight * term.rows;
+    var dpr = window.devicePixelRatio || 1;
+    var scaleX = (canvas.width / nativeW).toFixed(2);
+    var scaleY = (canvas.height / nativeH).toFixed(2);
+    renderStatsEl.textContent =
+      'Native: ' + nativeW + '\u00d7' + nativeH +
+      ' | Canvas: ' + canvas.width + '\u00d7' + canvas.height +
+      ' | CSS: ' + Math.round(rect.width) + '\u00d7' + Math.round(rect.height) +
+      ' | Scale: ' + scaleX + 'x' +
+      ' | DPR: ' + dpr;
+  }
+  new ResizeObserver(updateRenderStats).observe(container);
+  updateRenderStats();
+
   term.write('RetroTerm Demo\r\n');
   term.write('Select a test from the dropdown and click Run.\r\n');
   term.write('Or select Echo Mode to type interactively.\r\n\r\n');
