@@ -14,15 +14,17 @@
 import { FontBase } from './FontBase';
 
 // ISO 646 variant redirect maps: ASCII position → glyph position in GLYPHS (ROM positions 0-31)
-// Norwegian variant (fontNum 5): all 10 positions found in ROM
+// Norwegian/Danish variant (fontNum 5): NS 4551 reassigns ONLY the six bracket
+// positions; @ ^ ` ~ stay plain ASCII (they fall through to the main set).
 const NORWEGIAN_REDIRECT: Record<number, number> = {
-  0x40: 1, 0x5B: 5, 0x5C: 6, 0x5D: 2, 0x5E: 4,
-  0x60: 17, 0x7B: 16, 0x7C: 29, 0x7D: 22, 0x7E: 10,
+  0x5B: 5, 0x5C: 6, 0x5D: 2,    // [ \ ] -> AE OE AA
+  0x7B: 16, 0x7C: 29, 0x7D: 22, // { | } -> ae oe aa
 };
-// Swedish variant (fontNum 6): all 10 positions found in ROM
+// Swedish/Finnish variant (fontNum 6): SEN 850200 Annex B (basic) - @ and `
+// stay ASCII (the Annex C "names" version would map @->E-acute, `->e-acute).
 const SWEDISH_REDIRECT: Record<number, number> = {
-  0x40: 3, 0x5B: 1, 0x5C: 8, 0x5D: 2, 0x5E: 4,
-  0x60: 25, 0x7B: 17, 0x7C: 28, 0x7D: 22, 0x7E: 10,
+  0x5B: 1, 0x5C: 8, 0x5D: 2, 0x5E: 4,   // [ \ ] ^ -> A-dots O-dots AA U-dots
+  0x7B: 17, 0x7C: 28, 0x7D: 22, 0x7E: 10, // { | } ~ -> a-dots o-dots aa u-dots
 };
 // German variant (fontNum 7): 8 found in ROM + 2 hand-designed (§=512, ß=513)
 // 0x5E (^) and 0x60 (`) are same as International — no redirect needed
