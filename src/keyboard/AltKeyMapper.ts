@@ -8,8 +8,8 @@
  *   Alt+H → HELP (HJELP)    Alt+A → MARK (MERK)    Alt+1-8 → PUSH1-8
  *   Alt+D → DO (REPLACE)    Alt+L → FIELD (FELT)    Alt+F1-F8 → PUSH1-8
  *   Alt+U → FUNC (FUNK)     Alt+R → PARA (AVSH)     Alt+Delete → DELETE (STRYK)
- *   Alt+P → PRINT (SKRIV)   Alt+E → SENT (SETN)     Alt+PageUp → ROLLDN
- *   Alt+S → EXIT (SLUTT)    Alt+W → WORD (ORD)      Alt+PageDown → ROLLUP
+ *   Alt+P → PRINT (SKRIV)   Alt+E → SENT (SETN)     Alt+PageUp → ROLLUP
+ *   Alt+S → EXIT (SLUTT)    Alt+W → WORD (ORD)      Alt+PageDown → ROLLDN
  *   Alt+Bksp → CANCEL       Alt+K → COPY (KOPI)
  *   Alt+M → MODE            Alt+V → MOVE (FLYTT)
  *   Alt+F → FIND (SEARCH)   Alt+J → JUST

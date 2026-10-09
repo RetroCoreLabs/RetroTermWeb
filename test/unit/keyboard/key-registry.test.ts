@@ -275,8 +275,8 @@ describe('TDV2200KeyRegistry', () => {
 
     it('should map navigation keys correctly', () => {
       expect(TDV2200KeyRegistry.getDefaultAltTarget(46)).toBe('G47'); // Alt+Delete → STRYK
-      expect(TDV2200KeyRegistry.getDefaultAltTarget(33)).toBe('D49'); // Alt+PageUp → ROLLDN
-      expect(TDV2200KeyRegistry.getDefaultAltTarget(34)).toBe('D47'); // Alt+PageDown → ROLLUP
+      expect(TDV2200KeyRegistry.getDefaultAltTarget(33)).toBe('D47'); // Alt+PageUp → ROLLUP
+      expect(TDV2200KeyRegistry.getDefaultAltTarget(34)).toBe('D49'); // Alt+PageDown → ROLLDN
     });
   });
 

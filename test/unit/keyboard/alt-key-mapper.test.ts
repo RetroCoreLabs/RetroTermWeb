@@ -63,8 +63,8 @@ describe('AltKeyMapper', () => {
       expect(mapAltKeyToGrid('Delete')).toBe('G47');
     });
 
-    it('should map Alt+PageUp to ROLLDN (D49)', () => {
-      expect(mapAltKeyToGrid('PageUp')).toBe('D49');
+    it('should map Alt+PageUp to ROLLUP (D47)', () => {
+      expect(mapAltKeyToGrid('PageUp')).toBe('D47');
     });
 
     it('should map Alt+Backspace to ANGRE (D48)', () => {

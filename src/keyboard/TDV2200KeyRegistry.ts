@@ -191,9 +191,9 @@ function initializeKeys(): void {
   reg('D13', 'LF', TDVKeyColor.Orange, TDVKeyFlags.AlwaysSameCode, 10, '\x0A', null, null, '\x0A', null);
 
   // Navigation area
-  reg('D47', 'ROLLUP', TDVKeyColor.Brown, TDVKeyFlags.None, 34, '\x1B[28_', '\x1B[29_', null, '\x06', null);
+  reg('D47', 'ROLLUP', TDVKeyColor.Brown, TDVKeyFlags.None, 33, '\x1B[28_', '\x1B[29_', null, '\x06', null);
   reg('D48', 'ANGRE', TDVKeyColor.Orange, TDVKeyFlags.None, 0, '\x1B[30_', '\x1B[31_', null, '\x15', null);
-  reg('D49', 'ROLLDN', TDVKeyColor.Brown, TDVKeyFlags.None, 33, '\x1B[32_', '\x1B[33_', null, '\x05', null);
+  reg('D49', 'ROLLDN', TDVKeyColor.Brown, TDVKeyFlags.None, 34, '\x1B[32_', '\x1B[33_', null, '\x05', null);
 
   // Numeric pad
   reg('D51', 'KP7', TDVKeyColor.White, TDVKeyFlags.IsNumericPad, 103, null, null, null, null, '\x1B[75_');
@@ -289,11 +289,11 @@ function initializeKeys(): void {
   alias('insert_mode', 'D99');
   alias('inns', 'D99');
   alias('linefeed', 'D13');
-  alias('pagedown', 'D47');
-  alias('pgdn', 'D47');
+  alias('pagedown', 'D49');
+  alias('pgdn', 'D49');
   alias('cancel', 'D48');
-  alias('pageup', 'D49');
-  alias('pgup', 'D49');
+  alias('pageup', 'D47');
+  alias('pgup', 'D47');
   alias('mode', 'C99');
   alias('enter', 'C13');
   alias('erase_page', 'C47');
@@ -610,8 +610,8 @@ function initializeAltMappings(): void {
 
   // Navigation
   _defaultAltMap.set(46, 'G47');  // Alt+Delete → STRYK
-  _defaultAltMap.set(33, 'D49');  // Alt+PageUp → ROLLDN
-  _defaultAltMap.set(34, 'D47');  // Alt+PageDown → ROLLUP
+  _defaultAltMap.set(33, 'D47');  // Alt+PageUp → ROLLUP
+  _defaultAltMap.set(34, 'D49');  // Alt+PageDown → ROLLDN
 }
 
 // --- Run initialization ---

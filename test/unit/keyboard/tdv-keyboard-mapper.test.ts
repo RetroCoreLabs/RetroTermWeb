@@ -169,16 +169,16 @@ describe('TDVKeyboardMapper', () => {
       expect(seq).toBe('\x1B[82_'); // D99 INNS normal
     });
 
-    it('should map PageDown (VK 34) to ROLLUP', () => {
+    it('should map PageDown (VK 34) to ROLLDN', () => {
       const mapper = createMapper();
       const seq = mapper.mapKey(34, KeyModifiers.None, TerminalModes.None);
-      expect(seq).toBe('\x1B[28_'); // D47 ROLLUP normal
+      expect(seq).toBe('\x1B[32_'); // D49 ROLLDN normal
     });
 
-    it('should map PageUp (VK 33) to ROLLDN', () => {
+    it('should map PageUp (VK 33) to ROLLUP', () => {
       const mapper = createMapper();
       const seq = mapper.mapKey(33, KeyModifiers.None, TerminalModes.None);
-      expect(seq).toBe('\x1B[32_'); // D49 ROLLDN normal
+      expect(seq).toBe('\x1B[28_'); // D47 ROLLUP normal
     });
 
     it('should map Tab (VK 9) to TAB', () => {
